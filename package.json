@@ -25,13 +25,53 @@
     ],
     "fileAssociations": [
       {
-        "ext": ["mp4", "m4v", "webm", "ogv", "mov"],
+        "ext": [
+          "mp4",
+          "m4v",
+          "webm",
+          "ogv",
+          "mov"
+        ],
         "name": "Video",
         "role": "Viewer"
       }
     ],
-    "mac": { "category": "public.app-category.video", "target": ["dmg"] },
-    "win": { "target": ["nsis"] },
-    "linux": { "target": ["AppImage"], "category": "AudioVideo" }
+    "mac": {
+      "category": "public.app-category.video",
+      "target": [
+        "dmg"
+      ]
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "artifactName": "VideoPlayer-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Video Player",
+      "deleteAppDataOnUninstall": false
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "ohavs",
+        "repo": "Video-Player"
+      }
+    ],
+    "linux": {
+      "target": [
+        "AppImage"
+      ],
+      "category": "AudioVideo"
+    }
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.9"
   }
 }

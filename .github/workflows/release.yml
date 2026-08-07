@@ -1,0 +1,35 @@
+name: Release
+
+# Tag a commit and this builds the Windows installer and publishes it as a
+# GitHub Release. The app's updater reads that same release feed, so shipping a
+# new version is: bump the version, tag, push.
+#
+#   npm version patch
+#   git push --follow-tags
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Build and publish installer
+        run: npm run dist -- --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

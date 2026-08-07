@@ -7,18 +7,54 @@ between.
 
 Electron + vanilla JS. No framework, no build step for the app itself.
 
-## Running it
+## Installing it as a real application
+
+Build the installer once, then it behaves like any other installed program —
+Start Menu and desktop shortcuts, no terminal, and it updates itself from then on.
+
+```powershell
+npm install
+npm run dist
+```
+
+That writes `dist\VideoPlayer-Setup-<version>.exe`. Run it. It installs per-user, so it
+needs no administrator rights.
+
+Windows will show a SmartScreen warning ("unknown publisher") because the build is not code
+signed — click **More info → Run anyway**. Removing that warning requires a paid code-signing
+certificate; nothing in the app depends on it.
+
+### Updates
+
+The app checks GitHub Releases a few seconds after launch, downloads a new version in the
+background, and installs it when you next quit. Nothing to run.
+
+Settings (⚙) → **Check for updates** forces a check and shows the current state. Once a version
+has downloaded, the row becomes **Restart to update**.
+
+Publishing a new version:
+
+```bash
+npm version patch
+git push --follow-tags
+```
+
+The tag triggers `.github/workflows/release.yml`, which builds the installer on Windows and
+attaches it to a GitHub Release — the same feed the installed app reads.
+
+Two requirements for updates to reach users: the repository must be **public** (an unsigned
+update check sends no credentials), and each release needs a version number higher than the
+installed one.
+
+### Running from source
 
 ```bash
 npm install
 npm start
 ```
 
-To package a distributable (`dist/`):
-
-```bash
-npm run dist
-```
+Updates are disabled in this mode — there is no release feed to check against, and the settings
+row says so rather than failing quietly.
 
 ## What it does
 
@@ -73,6 +109,17 @@ Playback uses Chromium's decoders. **MP4/H.264/AAC and WebM/VP8/VP9 work.** MKV 
 H.265/HEVC and AC3 audio generally will not — the player reports this clearly rather than
 failing silently. Bundling FFmpeg would lift that limit and is the main thing standing between
 this and "plays anything".
+
+## Files with a broken duration header
+
+Many recorders — dashcams especially — write a container header whose duration is wrong, or
+whose timeline does not start at zero. Such a file will report a duration of hundreds of hours
+while a 60-second clip plays.
+
+The player never trusts `duration`. It derives the timeline from `seekable`, which reports what
+the decoder will actually let you reach, and applies the offset in one place (`Player`), so
+every other module works in display time starting at 0. Bookmarks are stored in that same
+display time and stay correct.
 
 ## Layout
 

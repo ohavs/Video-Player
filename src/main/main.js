@@ -5,6 +5,7 @@ const fs = require('fs');
 const path = require('path');
 const { Readable } = require('stream');
 const store = require('./store');
+const updater = require('./updater');
 
 const VIDEO_EXTENSIONS = ['mp4', 'm4v', 'webm', 'ogv', 'ogg', 'mov', 'mkv', 'avi'];
 
@@ -294,6 +295,10 @@ function registerIpc() {
   });
   ipcMain.handle('library:recent', (_e, limit) => store.recent(limit));
 
+  ipcMain.handle('updates:state', () => updater.getState());
+  ipcMain.handle('updates:check', () => updater.check({ silent: false }));
+  ipcMain.handle('updates:install', () => updater.install());
+
   ipcMain.handle('window:fullscreen', (_e, value) => {
     if (!mainWindow || mainWindow.isDestroyed()) return false;
     mainWindow.setFullScreen(Boolean(value));
@@ -341,6 +346,13 @@ if (!app.requestSingleInstanceLock()) {
     registerIpc();
     buildMenu();
     createWindow();
+
+    updater.init((state) => {
+      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('updates:status', state);
+    });
+    // Quiet check shortly after launch; the UI only speaks up if there is
+    // something to say.
+    setTimeout(() => updater.check({ silent: true }), 4000);
 
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) createWindow();

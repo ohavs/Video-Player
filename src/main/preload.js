@@ -39,6 +39,12 @@ contextBridge.exposeInMainWorld('host', {
   forgetEntry: (fingerprint) => ipcRenderer.invoke('library:forget', fingerprint),
   recentFiles: (limit) => ipcRenderer.invoke('library:recent', limit),
 
+  // Updates
+  getUpdateState: () => ipcRenderer.invoke('updates:state'),
+  checkForUpdates: () => ipcRenderer.invoke('updates:check'),
+  installUpdate: () => ipcRenderer.invoke('updates:install'),
+  onUpdateStatus: listen('updates:status'),
+
   // Window
   setWindowFullScreen: (value) => ipcRenderer.invoke('window:fullscreen', value),
 

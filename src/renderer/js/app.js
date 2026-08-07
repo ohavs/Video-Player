@@ -80,6 +80,8 @@ const menu = new SettingsMenu(dom.menuHost, {
   onAction: (action, value) => {
     if (action === 'applySpeed') applySpeed(value);
     else if (action === 'openShortcuts') shortcuts.show();
+    else if (action === 'checkUpdates') globalThis.host?.checkForUpdates();
+    else if (action === 'installUpdate') globalThis.host?.installUpdate();
   },
 });
 
@@ -446,7 +448,11 @@ player.on('ended', () => {
 
 player.on('ratechange', () => controls.setRate(player.rate));
 player.on('volumechange', () => controls.setVolume(player.volume, player.muted));
-player.on('progress', () => scrubber.setBuffered(player.buffered, player.currentTime));
+player.on('progress', () => {
+  // A growing seekable range can change the real duration mid-playback.
+  scrubber.setDuration(player.duration);
+  scrubber.setBufferedEnd(player.bufferedEnd());
+});
 player.on('seeked', () => paintTime(true));
 
 player.on('error', () => {
@@ -704,6 +710,16 @@ async function boot() {
 
   globalThis.host?.onOpenFile((file) => openFile(file));
   globalThis.host?.onMenuAction((action) => runAction(action));
+
+  // Updates: the menu row mirrors whatever the main process reports, and a
+  // downloaded update is the one state worth interrupting for.
+  globalThis.host?.onUpdateStatus((state) => {
+    menu.setUpdateState(state);
+    if (state.status === 'ready') toast(`Update ${state.version} ready — restart to install`, { duration: 6000 });
+    else if (state.status === 'error' && menu.open) toast('Could not check for updates');
+  });
+  globalThis.host?.getUpdateState().then((state) => menu.setUpdateState(state)).catch(() => {});
+
   globalThis.host?.signalReady();
 }
 

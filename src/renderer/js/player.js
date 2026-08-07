@@ -17,8 +17,48 @@ export class Player {
     this.frameHandle = null;
     this.file = null;
 
+    // Where this file's timeline really starts and how long it really runs.
+    // See refreshTimeline().
+    this.origin = 0;
+    this.span = 0;
+
     this.el.preload = 'auto';
     this.el.playsInline = true;
+
+    // Registered here, in the constructor, so these run before the app's own
+    // handlers for the same events — the app reads duration inside them.
+    for (const event of ['loadedmetadata', 'durationchange', 'progress', 'seeked']) {
+      this.el.addEventListener(event, () => this.refreshTimeline());
+    }
+  }
+
+  /* ---------------- timeline ---------------- */
+
+  // `duration` cannot be trusted. Plenty of real files — dashcam recordings in
+  // particular — carry a broken or absolute-timestamped header, reporting
+  // durations of hundreds of hours and a timeline that does not start at zero.
+  // `seekable` reports what the decoder will actually let us reach, so that is
+  // what the UI is built on: everything outside this class works in display
+  // time starting at 0, and the offset is applied here.
+  refreshTimeline() {
+    const seekable = this.el.seekable;
+    let origin = 0;
+    let end = 0;
+
+    if (seekable && seekable.length) {
+      const first = seekable.start(0);
+      const last = seekable.end(seekable.length - 1);
+      if (Number.isFinite(first) && first >= 0) origin = first;
+      if (Number.isFinite(last) && last > origin) end = last;
+    }
+
+    if (!end) {
+      const reported = this.el.duration;
+      if (Number.isFinite(reported) && reported > 0) end = origin + reported;
+    }
+
+    this.origin = origin;
+    this.span = Math.max(0, end - origin);
   }
 
   /* ---------------- source ---------------- */
@@ -27,6 +67,8 @@ export class Player {
     this.file = file;
     this.fps = DEFAULT_FPS;
     this.fpsSamples = [];
+    this.origin = 0;
+    this.span = 0;
     this.el.src = file.url;
     this.el.load();
     this.measureFrameRate();
@@ -40,13 +82,14 @@ export class Player {
 
   /* ---------------- transport ---------------- */
 
+  // Display time: 0 .. span, regardless of what the file's header claims.
   get duration() {
-    const d = this.el.duration;
-    return Number.isFinite(d) && d > 0 ? d : 0;
+    return this.span;
   }
 
   get currentTime() {
-    return this.el.currentTime || 0;
+    if (this.span <= 0) return 0;
+    return clamp((this.el.currentTime || 0) - this.origin, 0, this.span);
   }
 
   get paused() {
@@ -72,8 +115,8 @@ export class Player {
   }
 
   seek(time) {
-    if (!this.duration) return;
-    this.el.currentTime = clamp(time, 0, Math.max(0, this.duration - 0.02));
+    if (this.span <= 0) return;
+    this.el.currentTime = this.origin + clamp(time, 0, Math.max(0, this.span - 0.02));
   }
 
   seekBy(delta) {
@@ -148,6 +191,23 @@ export class Player {
 
   get buffered() {
     return this.el.buffered;
+  }
+
+  // How far the contiguous buffer under the playhead reaches, in display time.
+  // Disjoint ranges elsewhere in the file are deliberately ignored — painting
+  // them all is noise rather than information.
+  bufferedEnd() {
+    const ranges = this.el.buffered;
+    if (!ranges || !ranges.length || this.span <= 0) return 0;
+
+    const raw = this.el.currentTime || 0;
+    let end = 0;
+    for (let i = 0; i < ranges.length; i += 1) {
+      if (ranges.start(i) <= raw + 0.5 && ranges.end(i) >= raw) {
+        end = Math.max(end, ranges.end(i));
+      }
+    }
+    return end ? clamp(end - this.origin, 0, this.span) : 0;
   }
 
   async enterFullscreen(container) {

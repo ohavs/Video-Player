@@ -23,6 +23,7 @@ export class SettingsMenu {
     this.onAction = onAction || (() => {});
     this.open = false;
     this.page = 'root';
+    this.updateState = { status: 'idle', appVersion: '' };
 
     this.root = document.createElement('div');
     this.root.className = 'menu';
@@ -44,6 +45,14 @@ export class SettingsMenu {
           { type: 'submenu', id: 'bookmarks', label: 'Bookmarks' },
           { type: 'submenu', id: 'playback', label: 'Playback' },
           { type: 'action', id: 'shortcuts', label: 'Keyboard shortcuts', glyph: 'keyboard' },
+          {
+            type: 'action',
+            id: this.updateState.status === 'ready' ? 'installUpdate' : 'checkUpdates',
+            label: updateLabel(this.updateState),
+            glyph: 'reset',
+            note: updateNote(this.updateState),
+            busy: this.updateState.status === 'checking' || this.updateState.status === 'downloading',
+          },
         ],
       },
 
@@ -158,7 +167,16 @@ export class SettingsMenu {
     } else if (type === 'action' && id === 'shortcuts') {
       this.hide();
       this.onAction('openShortcuts');
+    } else if (type === 'action' && id === 'checkUpdates') {
+      this.onAction('checkUpdates');
+    } else if (type === 'action' && id === 'installUpdate') {
+      this.onAction('installUpdate');
     }
+  }
+
+  setUpdateState(state) {
+    this.updateState = state || this.updateState;
+    if (this.open && this.page === 'root') this.render();
   }
 
   findItem(id) {
@@ -200,8 +218,10 @@ function renderItem(item) {
   }
 
   if (item.type === 'action') {
-    return `<button class="menu-row" ${base} type="button">
-      <span class="menu-label">${item.glyph ? icon(item.glyph) : ''}${escapeHtml(item.label)}</span>
+    return `<button class="menu-row ${item.busy ? 'is-busy' : ''}" ${base} type="button">
+      <span class="menu-label">${item.glyph ? icon(item.glyph) : ''}${escapeHtml(item.label)}
+        ${item.note ? `<small class="menu-note">${escapeHtml(item.note)}</small>` : ''}
+      </span>
       <span class="menu-value">${icon('chevronRight')}</span>
     </button>`;
   }
@@ -518,6 +538,29 @@ export class BookmarkPanel {
   toggle() {
     if (this.open) this.hide();
     else this.show();
+  }
+}
+
+function updateLabel(state) {
+  switch (state.status) {
+    case 'checking': return 'Checking for updates…';
+    case 'downloading': return `Downloading update… ${state.percent || 0}%`;
+    case 'ready': return 'Restart to update';
+    case 'none': return 'Up to date';
+    case 'error': return 'Check for updates';
+    case 'disabled': return 'Updates unavailable';
+    default: return 'Check for updates';
+  }
+}
+
+function updateNote(state) {
+  const version = state.appVersion ? `v${state.appVersion}` : '';
+  switch (state.status) {
+    case 'ready': return `Version ${state.version} is ready to install`;
+    case 'none': return version ? `${version} is the latest` : '';
+    case 'error': return state.message || 'Last check failed';
+    case 'disabled': return 'Running from source — install the app to get updates';
+    default: return version;
   }
 }
 

@@ -152,18 +152,9 @@ export class Scrubber {
     this.paint();
   }
 
-  setBuffered(ranges, currentTime) {
-    // Only the contiguous range under the playhead is shown. Painting every
-    // disjoint range would be noisier than it is useful.
-    let end = 0;
-    if (ranges) {
-      for (let i = 0; i < ranges.length; i += 1) {
-        if (ranges.start(i) <= currentTime + 0.5 && ranges.end(i) >= currentTime) {
-          end = Math.max(end, ranges.end(i));
-        }
-      }
-    }
-    this.bufferedEnd = end;
+  // Already resolved to display time by the player, which owns the offset.
+  setBufferedEnd(end) {
+    this.bufferedEnd = Number.isFinite(end) ? end : 0;
     this.paint();
   }
 

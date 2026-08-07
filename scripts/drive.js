@@ -314,6 +314,42 @@ app.whenReady().then(async () => {
   }
   check('bookmarks persist to disk', libraryExists && stored === 4, `${stored} in ${libraryPath}`);
 
+  /* ---- 11. files whose header lies about duration ---- */
+  // Reproduces a real dashcam file: the header claims 353 hours and the
+  // timeline does not start at zero. seekable is the truth; duration is not.
+  await evaluate(win, `
+    (() => {
+      const proto = HTMLMediaElement.prototype;
+      const realDuration = Object.getOwnPropertyDescriptor(proto, 'duration');
+      const realSeekable = Object.getOwnPropertyDescriptor(proto, 'seekable');
+      window.__restore = () => {
+        Object.defineProperty(proto, 'duration', realDuration);
+        Object.defineProperty(proto, 'seekable', realSeekable);
+      };
+      Object.defineProperty(proto, 'duration', { configurable: true, get: () => 1271310 });
+      Object.defineProperty(proto, 'seekable', {
+        configurable: true,
+        get: () => ({ length: 1, start: () => 1271250, end: () => 1271310 }),
+      });
+      const v = document.querySelector('video');
+      v.dispatchEvent(new Event('durationchange'));
+      v.dispatchEvent(new Event('seeked'));
+      return true;
+    })()
+  `);
+  await wait(500);
+
+  const brokenHeader = await evaluate(
+    win,
+    `(() => ({ duration: document.querySelector('[data-role="timeDuration"]').textContent,
+               current: document.querySelector('[data-role="timeCurrent"]').textContent }))()`,
+  );
+  check('a lying duration header falls back to the seekable range',
+    brokenHeader.duration === '1:00',
+    `shows ${brokenHeader.current} / ${brokenHeader.duration} (was 353:08:30 before the fix)`);
+
+  await evaluate(win, `window.__restore(); true`);
+
   /* ---- summary ---- */
   const failed = results.filter((r) => !r.passed);
   console.log(`\nRESULT ${results.length - failed.length}/${results.length} checks passed`);
