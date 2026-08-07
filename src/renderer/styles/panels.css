@@ -435,6 +435,90 @@
 }
 
 /* ------------------------------------------------------------------ *
+ * Update notice
+ * ------------------------------------------------------------------ */
+
+.updatebar {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 14;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: min(380px, calc(100% - 28px));
+  padding: 10px 10px 10px 14px;
+  border-radius: var(--radius);
+  background: rgba(26, 26, 26, 0.97);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow);
+  animation: update-in 0.22s var(--ease);
+}
+
+.updatebar.is-ready {
+  border-color: rgba(255, 212, 0, 0.5);
+}
+
+@keyframes update-in {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: none; }
+}
+
+.update-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.update-title {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.update-sub {
+  display: block;
+  margin-top: 2px;
+  font-size: 11.5px;
+  color: var(--text-faint);
+}
+
+.update-install {
+  flex: none;
+  padding: 7px 14px;
+  border-radius: 999px;
+  background: var(--mark);
+  color: #241d00;
+  font-size: 12.5px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.update-install:hover {
+  filter: brightness(1.08);
+}
+
+/* Thin determinate bar along the bottom edge while downloading. */
+.update-progress {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 6px;
+  height: 2px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.16);
+  overflow: hidden;
+}
+
+.update-progress span {
+  display: block;
+  height: 100%;
+  background: var(--mark);
+  transition: width 0.2s var(--ease);
+}
+
+/* ------------------------------------------------------------------ *
  * Bookmark list
  * ------------------------------------------------------------------ */
 

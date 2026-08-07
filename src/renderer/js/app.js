@@ -34,6 +34,7 @@ const dom = {
   panelHost: el('panelHost'),
   sheetHost: el('sheetHost'),
   dropVeil: el('dropVeil'),
+  updateBar: el('updateBar'),
 };
 
 const player = new Player(dom.video);
@@ -632,6 +633,64 @@ function escapeText(value) {
 }
 
 /* ================================================================== *
+ * Update notice
+ * ================================================================== */
+
+// Dismissal is remembered per state, so waving away the download progress does
+// not also hide the "ready to install" notice that follows it.
+let updateDismissedFor = '';
+
+function renderUpdateBar(state) {
+  const key = `${state.status}:${state.version || ''}`;
+  const relevant = state.status === 'downloading' || state.status === 'ready';
+
+  if (!relevant || updateDismissedFor === key) {
+    dom.updateBar.hidden = true;
+    return;
+  }
+
+  dom.updateBar.classList.toggle('is-ready', state.status === 'ready');
+  dom.updateBar.dataset.key = key;
+
+  if (state.status === 'ready') {
+    dom.updateBar.innerHTML = `
+      <span class="update-text">
+        <strong class="update-title">Update ready</strong>
+        <span class="update-sub">Version ${escapeText(state.version)} installs when you restart</span>
+      </span>
+      <button class="update-install" data-cmd="install" type="button">Restart &amp; update</button>
+      <button class="btn-icon" data-cmd="dismiss" type="button" aria-label="Later">${icon('close')}</button>
+    `;
+  } else {
+    dom.updateBar.innerHTML = `
+      <span class="update-text">
+        <strong class="update-title">Downloading update</strong>
+        <span class="update-sub">Version ${escapeText(state.version || '')} · ${state.percent || 0}%</span>
+      </span>
+      <button class="btn-icon" data-cmd="dismiss" type="button" aria-label="Hide">${icon('close')}</button>
+      <span class="update-progress"><span style="width:${state.percent || 0}%"></span></span>
+    `;
+  }
+
+  dom.updateBar.hidden = false;
+}
+
+dom.updateBar.addEventListener('click', (event) => {
+  const cmd = event.target.closest('[data-cmd]')?.dataset.cmd;
+  if (cmd === 'install') {
+    // Bookmarks and settings live in userData, which the installer never
+    // touches — but flush anything still in a debounce window first.
+    savePosition(true);
+    Promise.all([store.flush(), settings.flush()])
+      .catch(() => {})
+      .finally(() => globalThis.host?.installUpdate());
+  } else if (cmd === 'dismiss') {
+    dom.updateBar.hidden = true;
+    updateDismissedFor = dom.updateBar.dataset.key || '';
+  }
+});
+
+/* ================================================================== *
  * Recent files
  * ================================================================== */
 
@@ -715,10 +774,15 @@ async function boot() {
   // downloaded update is the one state worth interrupting for.
   globalThis.host?.onUpdateStatus((state) => {
     menu.setUpdateState(state);
-    if (state.status === 'ready') toast(`Update ${state.version} ready — restart to install`, { duration: 6000 });
-    else if (state.status === 'error' && menu.open) toast('Could not check for updates');
+    renderUpdateBar(state);
+    if (state.status === 'error' && menu.open) toast('Could not check for updates');
   });
-  globalThis.host?.getUpdateState().then((state) => menu.setUpdateState(state)).catch(() => {});
+  globalThis.host?.getUpdateState()
+    .then((state) => {
+      menu.setUpdateState(state);
+      renderUpdateBar(state);
+    })
+    .catch(() => {});
 
   globalThis.host?.signalReady();
 }

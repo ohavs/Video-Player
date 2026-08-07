@@ -350,6 +350,31 @@ app.whenReady().then(async () => {
 
   await evaluate(win, `window.__restore(); true`);
 
+  /* ---- 12. update notice ---- */
+  // Pushed on the same channel the updater uses, so this exercises the real
+  // renderer path rather than a stand-in.
+  win.webContents.send('updates:status', { status: 'downloading', version: '0.2.0', percent: 40 });
+  await wait(500);
+  const downloading = await evaluate(
+    win,
+    `(() => { const b = document.querySelector('.updatebar');
+       return { shown: !b.hidden, text: b.textContent.replace(/\\s+/g, ' ').trim() }; })()`,
+  );
+  check('a downloading update shows progress in the app',
+    downloading.shown && downloading.text.includes('40%'), downloading.text);
+
+  win.webContents.send('updates:status', { status: 'ready', version: '0.2.0', percent: 100 });
+  await wait(500);
+  const ready = await evaluate(
+    win,
+    `(() => { const b = document.querySelector('.updatebar');
+       return { shown: !b.hidden, hasButton: Boolean(b.querySelector('[data-cmd="install"]')),
+                text: b.textContent.replace(/\\s+/g, ' ').trim() }; })()`,
+  );
+  check('a ready update offers a one-click install',
+    ready.shown && ready.hasButton, ready.text);
+  await shot(win, '10-update-ready');
+
   /* ---- summary ---- */
   const failed = results.filter((r) => !r.passed);
   console.log(`\nRESULT ${results.length - failed.length}/${results.length} checks passed`);
