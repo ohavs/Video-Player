@@ -1,0 +1,37 @@
+{
+  "name": "video-player",
+  "version": "0.1.0",
+  "description": "A desktop video player with instant timestamped bookmarks.",
+  "main": "src/main/main.js",
+  "author": "ohavs",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder"
+  },
+  "devDependencies": {
+    "electron": "^43.3.0",
+    "electron-builder": "^26.15.3"
+  },
+  "build": {
+    "appId": "com.ohavs.videoplayer",
+    "productName": "Video Player",
+    "files": [
+      "src/**/*",
+      "package.json"
+    ],
+    "fileAssociations": [
+      {
+        "ext": ["mp4", "m4v", "webm", "ogv", "mov"],
+        "name": "Video",
+        "role": "Viewer"
+      }
+    ],
+    "mac": { "category": "public.app-category.video", "target": ["dmg"] },
+    "win": { "target": ["nsis"] },
+    "linux": { "target": ["AppImage"], "category": "AudioVideo" }
+  }
+}

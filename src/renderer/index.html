@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src media:; font-src 'self'; connect-src 'self'"
+    />
+    <title>Video Player</title>
+    <link rel="stylesheet" href="styles/base.css" />
+    <link rel="stylesheet" href="styles/player.css" />
+    <link rel="stylesheet" href="styles/panels.css" />
+  </head>
+  <body>
+    <div class="app" id="app" data-state="empty">
+      <div class="stage" data-role="stage">
+        <video class="video" data-role="video" tabindex="-1"></video>
+
+        <!-- Centre pulse: the brief circle that confirms play/pause/seek. -->
+        <div class="pulse" data-role="pulse" aria-hidden="true"></div>
+
+        <!-- Welcome / empty state -->
+        <section class="welcome" data-role="welcome">
+          <div class="welcome-card">
+            <h1 class="welcome-title">Video Player</h1>
+            <p class="welcome-sub">
+              Open a video, then press <kbd data-role="welcomeKey">B</kbd> at any moment to bookmark it.
+            </p>
+            <button class="btn-primary" data-role="openButton" type="button">Open video…</button>
+            <p class="welcome-drop">or drop a file anywhere in this window</p>
+            <div class="recent" data-role="recent" hidden>
+              <h2 class="recent-title">Recent</h2>
+              <div class="recent-list" data-role="recentList"></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Player chrome: fades with the controls -->
+        <div class="chrome" data-role="chrome">
+          <header class="topbar" data-role="topbar">
+            <span class="topbar-title" data-role="title"></span>
+          </header>
+
+          <div class="chrome-bottom">
+            <div class="composer-host" data-role="composerHost"></div>
+            <div class="menu-host" data-role="menuHost"></div>
+            <div class="controls-host" data-role="controls"></div>
+          </div>
+        </div>
+
+        <div class="panel-host" data-role="panelHost"></div>
+        <div class="toasts" data-role="toasts" aria-live="polite"></div>
+        <div class="drop-veil" data-role="dropVeil"><span>Drop to open</span></div>
+      </div>
+
+      <div class="sheet-host" data-role="sheetHost"></div>
+    </div>
+
+    <script type="module" src="js/app.js"></script>
+  </body>
+</html>

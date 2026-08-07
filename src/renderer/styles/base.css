@@ -1,0 +1,395 @@
+/* Tokens, reset, app shell, welcome state, toasts. */
+
+:root {
+  --bg: #0f0f0f;
+  --surface: #212121;
+  --surface-2: #2f2f2f;
+  --surface-3: #3f3f3f;
+  --line: rgba(255, 255, 255, 0.12);
+
+  --text: #f1f1f1;
+  --text-dim: #aaaaaa;
+  --text-faint: #717171;
+
+  --accent: #ff0000;          /* played time */
+  --mark: #ffd400;            /* bookmarks — must read against the accent */
+  --track: rgba(255, 255, 255, 0.22);
+  --track-buffered: rgba(255, 255, 255, 0.42);
+  --track-hover: rgba(255, 255, 255, 0.55);
+
+  --control-h: 48px;
+  --scrub-h: 3px;
+  --scrub-h-hover: 5px;
+  --pad-x: 16px;
+
+  --radius: 12px;
+  --radius-sm: 8px;
+  --shadow: 0 8px 32px rgba(0, 0, 0, 0.55);
+
+  --ease: cubic-bezier(0.2, 0, 0.2, 1);
+
+  --font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial,
+    "Noto Sans Hebrew", sans-serif;
+  --font-num: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+/* Any `display` in a component rule beats the [hidden] default of display:none,
+   which silently leaves "hidden" overlays covering the window and eating every
+   click. Hidden must mean hidden. */
+[hidden] {
+  display: none !important;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #000;
+}
+
+body {
+  font-family: var(--font);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+  cursor: default;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+
+h1, h2, h3, p {
+  margin: 0;
+}
+
+kbd {
+  font-family: var(--font);
+  font-size: 0.85em;
+  padding: 2px 6px;
+  border-radius: 5px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-bottom-width: 2px;
+}
+
+.icon {
+  display: block;
+  flex: none;
+}
+
+:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ------------------------------------------------------------------ *
+ * Shell
+ * ------------------------------------------------------------------ */
+
+.app {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: var(--bg);
+}
+
+.stage {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: #000;
+  overflow: hidden;
+}
+
+.video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #000;
+  outline: none;
+}
+
+/* Hide the video surface entirely until something is loaded, so the welcome
+   card never sits on a black rectangle that looks like a broken file. */
+.app[data-state="empty"] .video {
+  visibility: hidden;
+}
+
+.app[data-state="empty"] .chrome {
+  display: none;
+}
+
+/* Cursor hides with the controls during playback. */
+.app.is-idle {
+  cursor: none;
+}
+
+/* ------------------------------------------------------------------ *
+ * Welcome
+ * ------------------------------------------------------------------ */
+
+.welcome {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: radial-gradient(120% 90% at 50% 0%, #1c1c1c 0%, var(--bg) 70%);
+  z-index: 4;
+}
+
+.app:not([data-state="empty"]) .welcome {
+  display: none;
+}
+
+.welcome-card {
+  width: min(520px, 100%);
+  text-align: center;
+}
+
+.welcome-title {
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin-bottom: 10px;
+}
+
+.welcome-sub {
+  color: var(--text-dim);
+  font-size: 14px;
+  line-height: 1.6;
+  margin-bottom: 26px;
+}
+
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 22px;
+  border-radius: 999px;
+  background: var(--text);
+  color: #0b0b0b;
+  font-size: 14px;
+  font-weight: 600;
+  transition: transform 0.12s var(--ease), opacity 0.12s var(--ease);
+}
+
+.btn-primary:hover {
+  opacity: 0.88;
+}
+
+.btn-primary:active {
+  transform: scale(0.98);
+}
+
+.welcome-drop {
+  margin-top: 14px;
+  font-size: 12.5px;
+  color: var(--text-faint);
+}
+
+.recent {
+  margin-top: 34px;
+  text-align: start;
+  border-top: 1px solid var(--line);
+  padding-top: 18px;
+}
+
+.recent-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  margin-bottom: 10px;
+}
+
+.recent-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 190px;
+  overflow-y: auto;
+}
+
+.recent-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 9px 12px;
+  border-radius: var(--radius-sm);
+  text-align: start;
+  transition: background 0.12s var(--ease);
+}
+
+.recent-row:hover {
+  background: var(--surface-2);
+}
+
+.recent-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 13.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.recent-meta {
+  flex: none;
+  font-size: 11.5px;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.recent-badge {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #241d00;
+  background: var(--mark);
+  padding: 2px 7px;
+  border-radius: 999px;
+}
+
+/* ------------------------------------------------------------------ *
+ * Toasts
+ * ------------------------------------------------------------------ */
+
+.toasts {
+  position: absolute;
+  left: 50%;
+  bottom: calc(var(--control-h) + 44px);
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  z-index: 8;
+  pointer-events: none;
+}
+
+.toast {
+  padding: 9px 16px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.82);
+  backdrop-filter: blur(6px);
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  animation: toast-in 0.18s var(--ease);
+}
+
+.toast.is-out {
+  animation: toast-out 0.22s var(--ease) forwards;
+}
+
+.toast strong {
+  color: var(--mark);
+  font-weight: 600;
+}
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: none; }
+}
+
+@keyframes toast-out {
+  to { opacity: 0; transform: translateY(-6px); }
+}
+
+/* ------------------------------------------------------------------ *
+ * Centre pulse
+ * ------------------------------------------------------------------ */
+
+.pulse {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 74px;
+  height: 74px;
+  margin: -37px 0 0 -37px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.65);
+  display: grid;
+  place-items: center;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 5;
+  color: #fff;
+}
+
+.pulse.is-active {
+  animation: pulse-fade 0.5s var(--ease);
+}
+
+.pulse .icon {
+  width: 34px;
+  height: 34px;
+}
+
+@keyframes pulse-fade {
+  0%   { opacity: 0.95; transform: scale(0.86); }
+  100% { opacity: 0; transform: scale(1.28); }
+}
+
+/* ------------------------------------------------------------------ *
+ * Drag and drop
+ * ------------------------------------------------------------------ */
+
+.drop-veil {
+  position: absolute;
+  inset: 0;
+  display: none;
+  place-items: center;
+  background: rgba(10, 10, 10, 0.86);
+  border: 2px dashed rgba(255, 255, 255, 0.4);
+  font-size: 16px;
+  font-weight: 600;
+  z-index: 20;
+  pointer-events: none;
+}
+
+.app.is-dropping .drop-veil {
+  display: grid;
+}
+
+/* ------------------------------------------------------------------ *
+ * RTL
+ * ------------------------------------------------------------------ */
+
+/* Panel text flips with the language, but the transport bar never does: a
+   timeline reads as time flowing left-to-right in every locale, and mirroring
+   it would send the playhead backwards. */
+[dir="rtl"] .controls,
+[dir="rtl"] .scrubber,
+[dir="rtl"] .composer-host {
+  direction: ltr;
+}
+
+[dir="rtl"] .bm-text,
+[dir="rtl"] .composer-input,
+[dir="rtl"] .sheet-row-label {
+  direction: rtl;
+  text-align: start;
+}

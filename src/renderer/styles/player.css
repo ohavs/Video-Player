@@ -1,0 +1,508 @@
+/* Player chrome: top bar, control row, scrubber, bookmark composer. */
+
+.chrome {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  pointer-events: none;
+  opacity: 1;
+  transition: opacity 0.2s var(--ease);
+}
+
+/* Everything inside the chrome is click-through except the actual widgets. */
+.chrome > * {
+  pointer-events: auto;
+}
+
+.app.is-idle .chrome {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.app.is-idle .chrome > * {
+  pointer-events: none;
+}
+
+.topbar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  padding: 14px 18px 40px;
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.7), transparent);
+  pointer-events: none;
+}
+
+.topbar-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: block;
+}
+
+.chrome-bottom {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding-top: 60px;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.78) 0%, rgba(0, 0, 0, 0.42) 46%, transparent 100%);
+}
+
+/* ------------------------------------------------------------------ *
+ * Control row
+ * ------------------------------------------------------------------ */
+
+.controls {
+  position: relative;
+  padding: 0 var(--pad-x) 6px;
+}
+
+.control-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: var(--control-h);
+  gap: 8px;
+}
+
+.control-group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+}
+
+.control-right {
+  gap: 2px;
+}
+
+.cbtn {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  color: #fff;
+  opacity: 0.92;
+  transition: background 0.12s var(--ease), opacity 0.12s var(--ease), transform 0.1s var(--ease);
+}
+
+.cbtn:hover {
+  background: rgba(255, 255, 255, 0.14);
+  opacity: 1;
+}
+
+.cbtn:active {
+  transform: scale(0.92);
+}
+
+.cbtn:disabled {
+  opacity: 0.32;
+  cursor: default;
+}
+
+.cbtn:disabled:hover {
+  background: none;
+}
+
+.cbtn.is-active {
+  color: var(--mark);
+}
+
+.cbtn-accent:hover {
+  color: var(--mark);
+}
+
+.cbtn-count {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--mark);
+  color: #241d00;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+}
+
+/* Volume: the slider unrolls on hover, as it does in most players. */
+.volume {
+  display: flex;
+  align-items: center;
+}
+
+.volume-slot {
+  width: 0;
+  overflow: hidden;
+  transition: width 0.18s var(--ease), margin 0.18s var(--ease);
+}
+
+.volume:hover .volume-slot,
+.volume:focus-within .volume-slot {
+  width: 76px;
+  margin-inline: 4px 8px;
+}
+
+.volume-range {
+  --filled: 100%;
+  -webkit-appearance: none;
+  appearance: none;
+  width: 76px;
+  height: 3px;
+  border-radius: 2px;
+  background: linear-gradient(to right, #fff 0 var(--filled), rgba(255, 255, 255, 0.3) var(--filled) 100%);
+  cursor: pointer;
+}
+
+.volume-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #fff;
+  cursor: pointer;
+}
+
+.time {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 8px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: #fff;
+  white-space: nowrap;
+}
+
+.time-duration,
+.time-sep {
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.chapter {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  padding-inline-start: 4px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.chapter-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--mark);
+  flex: none;
+}
+
+.chapter-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 34ch;
+}
+
+.rate-badge {
+  align-self: center;
+  padding: 3px 8px;
+  margin-inline-end: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16);
+  font-size: 11.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: #fff;
+}
+
+/* ------------------------------------------------------------------ *
+ * Scrubber
+ * ------------------------------------------------------------------ */
+
+.scrubber-host {
+  padding: 0 var(--pad-x);
+}
+
+.scrubber {
+  position: relative;
+  height: 16px;              /* generous hit area around a thin bar */
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  touch-action: none;
+}
+
+.scrub-hit {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+}
+
+.scrub-track {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  gap: 2px;                  /* the chapter break */
+  width: 100%;
+  height: var(--scrub-h);
+  transition: height 0.12s var(--ease);
+}
+
+.scrubber.is-hover .scrub-track,
+.scrubber.is-scrubbing .scrub-track,
+.scrubber:focus-visible .scrub-track {
+  height: var(--scrub-h-hover);
+}
+
+.scrubber[data-mode="points"] .scrub-track {
+  gap: 0;
+}
+
+.seg {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 1px;
+  background: var(--track);
+  overflow: hidden;
+}
+
+.seg-buffered,
+.seg-hover,
+.seg-played {
+  position: absolute;
+  inset: 0;
+  transform-origin: left center;
+  transform: scaleX(0);
+  will-change: transform;
+}
+
+.seg-buffered {
+  background: var(--track-buffered);
+}
+
+.seg-hover {
+  background: var(--track-hover);
+}
+
+.seg-played {
+  background: var(--accent);
+}
+
+/* Only the played fill animates, and only when not dragging — a transition on
+   the hover fill would lag the cursor. */
+.scrubber:not(.is-scrubbing) .seg-played {
+  transition: transform 0.08s linear;
+}
+
+.scrub-marks {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.scrub-mark {
+  position: absolute;
+  top: 50%;
+  width: 3px;
+  height: 11px;
+  margin-top: -5.5px;
+  margin-left: -1.5px;
+  border-radius: 1px;
+  background: var(--mark);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.45);
+  transition: transform 0.12s var(--ease);
+}
+
+.scrubber.is-hover .scrub-mark {
+  transform: scaleY(1.2);
+}
+
+.scrub-knob {
+  position: absolute;
+  top: 50%;
+  width: 13px;
+  height: 13px;
+  margin: -6.5px 0 0 -6.5px;
+  border-radius: 50%;
+  background: var(--accent);
+  transform: scale(0);
+  transition: transform 0.12s var(--ease);
+  pointer-events: none;
+}
+
+.scrubber.is-hover .scrub-knob,
+.scrubber.is-scrubbing .scrub-knob,
+.scrubber:focus-visible .scrub-knob {
+  transform: scale(1);
+}
+
+.scrub-tip {
+  position: absolute;
+  bottom: 22px;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 6px 9px;
+  border-radius: var(--radius-sm);
+  background: rgba(0, 0, 0, 0.9);
+  pointer-events: none;
+  white-space: nowrap;
+  z-index: 3;
+}
+
+.tip-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #fff;
+  max-width: 30ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tip-time {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: rgba(255, 255, 255, 0.78);
+}
+
+/* ------------------------------------------------------------------ *
+ * Bookmark composer
+ * ------------------------------------------------------------------ */
+
+.composer-host {
+  position: absolute;
+  left: var(--pad-x);
+  right: var(--pad-x);
+  bottom: calc(var(--control-h) + 22px);
+  height: 0;
+  pointer-events: none;
+}
+
+.composer {
+  --arrow-offset: 50%;
+  position: absolute;
+  bottom: 0;
+  width: 320px;
+  pointer-events: auto;
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity 0.14s var(--ease), transform 0.14s var(--ease);
+}
+
+.composer.is-open {
+  opacity: 1;
+  transform: none;
+}
+
+.composer-body {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 7px 7px 11px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow);
+}
+
+.composer-arrow {
+  position: absolute;
+  bottom: -6px;
+  left: var(--arrow-offset);
+  width: 12px;
+  height: 12px;
+  margin-left: -6px;
+  background: var(--surface);
+  border-right: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  transform: rotate(45deg);
+}
+
+.composer-stamp {
+  flex: none;
+  padding: 3px 7px;
+  border-radius: 6px;
+  background: var(--mark);
+  color: #241d00;
+  font-size: 11.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.composer-input {
+  flex: 1;
+  min-width: 0;
+  background: none;
+  border: 0;
+  outline: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 13.5px;
+  user-select: text;
+}
+
+.composer-input::placeholder {
+  color: var(--text-faint);
+}
+
+.composer-save {
+  flex: none;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--mark);
+  color: #241d00;
+  font-size: 12.5px;
+  font-weight: 700;
+}
+
+.composer-save:hover {
+  filter: brightness(1.08);
+}
+
+.composer-hint {
+  margin-top: 6px;
+  padding-left: 2px;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.62);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
+}
+
+.composer-hint kbd {
+  font-size: 10px;
+  padding: 1px 4px;
+}
+
+/* ------------------------------------------------------------------ *
+ * Narrow windows
+ * ------------------------------------------------------------------ */
+
+@media (max-width: 620px) {
+  .chapter,
+  .volume-slot {
+    display: none;
+  }
+
+  .cbtn {
+    width: 36px;
+    height: 36px;
+  }
+
+  .composer {
+    width: min(300px, calc(100vw - 32px));
+  }
+}
