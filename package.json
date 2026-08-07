@@ -61,7 +61,8 @@
       {
         "provider": "github",
         "owner": "ohavs",
-        "repo": "Video-Player"
+        "repo": "Video-Player",
+        "releaseType": "release"
       }
     ],
     "linux": {
