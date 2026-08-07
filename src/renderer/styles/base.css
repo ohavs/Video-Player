@@ -211,13 +211,39 @@ kbd {
   padding-top: 18px;
 }
 
+.recent-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
 .recent-title {
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.09em;
   text-transform: uppercase;
   color: var(--text-faint);
-  margin-bottom: 10px;
+}
+
+.recent-clear {
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-faint);
+  transition: background 0.12s var(--ease), color 0.12s var(--ease);
+}
+
+.recent-clear:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text);
+}
+
+.recent-clear[data-armed="true"] {
+  background: rgba(255, 212, 0, 0.16);
+  color: var(--mark);
 }
 
 .recent-list {
@@ -231,16 +257,43 @@ kbd {
 .recent-row {
   display: flex;
   align-items: center;
-  gap: 12px;
-  width: 100%;
-  padding: 9px 12px;
   border-radius: var(--radius-sm);
-  text-align: start;
   transition: background 0.12s var(--ease);
 }
 
 .recent-row:hover {
   background: var(--surface-2);
+}
+
+.recent-open {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+  padding: 9px 4px 9px 12px;
+  text-align: start;
+  color: inherit;
+}
+
+.recent-forget {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  margin-inline-end: 6px;
+  opacity: 0;
+  transition: opacity 0.12s var(--ease), background 0.12s var(--ease), color 0.12s var(--ease);
+}
+
+/* Kept reachable by keyboard even while invisible to the mouse. */
+.recent-row:hover .recent-forget,
+.recent-forget:focus-visible {
+  opacity: 1;
+}
+
+.recent-forget .icon {
+  width: 13px;
+  height: 13px;
 }
 
 .recent-name {
@@ -290,6 +343,9 @@ kbd {
 }
 
 .toast {
+  display: flex;
+  align-items: center;
+  gap: 12px;
   padding: 9px 16px;
   border-radius: 999px;
   background: rgba(0, 0, 0, 0.82);
@@ -298,6 +354,27 @@ kbd {
   font-weight: 500;
   white-space: nowrap;
   animation: toast-in 0.18s var(--ease);
+}
+
+/* The container is click-through so toasts never block the video; a toast
+   carrying an action takes its own clicks back. */
+.toast.is-actionable {
+  pointer-events: auto;
+  padding-right: 6px;
+}
+
+.toast-action {
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--mark);
+  transition: background 0.12s var(--ease);
+}
+
+.toast-action:hover {
+  background: rgba(255, 255, 255, 0.24);
 }
 
 .toast.is-out {

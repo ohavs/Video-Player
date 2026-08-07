@@ -27,6 +27,7 @@ const dom = {
   welcomeKey: el('welcomeKey'),
   recent: el('recent'),
   recentList: el('recentList'),
+  recentClear: el('recentClear'),
   chrome: el('chrome'),
   controlsHost: el('controls'),
   composerHost: el('composerHost'),
@@ -595,17 +596,37 @@ window.addEventListener('drop', async (event) => {
  * Feedback
  * ================================================================== */
 
-function toast(message, { duration = 2200, html = false } = {}) {
+function toast(message, { duration = 2200, html = false, action = null } = {}) {
   const node = document.createElement('div');
   node.className = 'toast';
-  if (html) node.innerHTML = message;
-  else node.textContent = message;
-  dom.toasts.appendChild(node);
 
-  setTimeout(() => {
+  const body = document.createElement('span');
+  if (html) body.innerHTML = message;
+  else body.textContent = message;
+  node.appendChild(body);
+
+  const dismiss = () => {
     node.classList.add('is-out');
     setTimeout(() => node.remove(), 240);
-  }, duration);
+  };
+
+  if (action) {
+    // Toasts are click-through by default; only one carrying an action opts in.
+    node.classList.add('is-actionable');
+    const button = document.createElement('button');
+    button.className = 'toast-action';
+    button.type = 'button';
+    button.textContent = action.label;
+    button.addEventListener('click', () => {
+      clearTimeout(timer);
+      dismiss();
+      action.onClick?.();
+    });
+    node.appendChild(button);
+  }
+
+  dom.toasts.appendChild(node);
+  const timer = setTimeout(dismiss, duration);
 }
 
 const PULSE_ICONS = {
@@ -694,33 +715,114 @@ dom.updateBar.addEventListener('click', (event) => {
  * Recent files
  * ================================================================== */
 
+let recentItems = [];
+
 async function refreshRecent() {
-  let items = [];
   try {
-    items = (await globalThis.host?.recentFiles(8)) || [];
+    recentItems = (await globalThis.host?.recentFiles(8)) || [];
   } catch (err) {
     console.error('[app] recent list failed', err);
+    recentItems = [];
   }
 
-  dom.recent.hidden = items.length === 0;
-  if (!items.length) return;
+  dom.recent.hidden = recentItems.length === 0;
+  dom.recentClear.hidden = recentItems.length === 0;
+  if (!recentItems.length) {
+    // Hiding the container is not enough — the rows have to go, or the next
+    // render starts from stale markup.
+    dom.recentList.innerHTML = '';
+    return;
+  }
 
-  dom.recentList.innerHTML = items
+  dom.recentList.innerHTML = recentItems
     .map((item) => {
       const count = Array.isArray(item.bookmarks) ? item.bookmarks.length : 0;
-      const badge = count ? `<span class="recent-badge">${count}</span>` : '';
-      return `<button class="recent-row" type="button" data-path="${escapeText(item.path)}">
-        <span class="recent-name">${escapeText(item.name || item.path)}</span>
-        ${badge}
-        <span class="recent-meta">${escapeText(formatRelativeDate(item.lastOpened))}</span>
-      </button>`;
+      const badge = count ? `<span class="recent-badge" title="${count} bookmarks">${count}</span>` : '';
+      return `<div class="recent-row" data-fingerprint="${escapeText(item.fingerprint)}">
+        <button class="recent-open" type="button" data-path="${escapeText(item.path)}" title="${escapeText(item.path)}">
+          <span class="recent-name">${escapeText(item.name || item.path)}</span>
+          ${badge}
+          <span class="recent-meta">${escapeText(formatRelativeDate(item.lastOpened))}</span>
+        </button>
+        <button class="btn-icon recent-forget" type="button" data-cmd="forget"
+                aria-label="Remove ${escapeText(item.name || '')} from this list">${icon('close')}</button>
+      </div>`;
     })
     .join('');
 }
 
+// Removing an entry takes its bookmarks with it, so every removal is undoable
+// rather than guarded by a confirmation the user would learn to click through.
+async function forgetRecent(fingerprint) {
+  const entry = recentItems.find((item) => item.fingerprint === fingerprint);
+  if (!entry) return;
+
+  await globalThis.host?.forgetEntry(fingerprint);
+  await refreshRecent();
+
+  const count = Array.isArray(entry.bookmarks) ? entry.bookmarks.length : 0;
+  const detail = count ? ` and ${count} bookmark${count === 1 ? '' : 's'}` : '';
+  toast(`Removed ${entry.name}${detail}`, {
+    duration: 7000,
+    action: {
+      label: 'Undo',
+      onClick: async () => {
+        const { fingerprint: _omit, ...body } = entry;
+        await globalThis.host?.saveEntry(fingerprint, body);
+        await refreshRecent();
+      },
+    },
+  });
+}
+
+async function clearRecent() {
+  const removed = [...recentItems];
+  if (!removed.length) return;
+
+  await Promise.all(removed.map((item) => globalThis.host?.forgetEntry(item.fingerprint)));
+  await refreshRecent();
+
+  toast(`Cleared ${removed.length} item${removed.length === 1 ? '' : 's'}`, {
+    duration: 7000,
+    action: {
+      label: 'Undo',
+      onClick: async () => {
+        await Promise.all(
+          removed.map(({ fingerprint, ...body }) => globalThis.host?.saveEntry(fingerprint, body)),
+        );
+        await refreshRecent();
+      },
+    },
+  });
+}
+
 dom.recentList.addEventListener('click', (event) => {
-  const row = event.target.closest('[data-path]');
-  if (row) openPath(row.dataset.path);
+  const row = event.target.closest('.recent-row');
+  if (!row) return;
+
+  if (event.target.closest('[data-cmd="forget"]')) {
+    forgetRecent(row.dataset.fingerprint);
+    return;
+  }
+  const open = event.target.closest('[data-path]');
+  if (open) openPath(open.dataset.path);
+});
+
+// Two-step, because this one is not a single row.
+dom.recentClear.addEventListener('click', () => {
+  if (dom.recentClear.dataset.armed === 'true') {
+    dom.recentClear.dataset.armed = 'false';
+    dom.recentClear.textContent = 'Clear all';
+    clearRecent();
+    return;
+  }
+  dom.recentClear.dataset.armed = 'true';
+  dom.recentClear.textContent = 'Clear all?';
+  setTimeout(() => {
+    if (dom.recentClear.dataset.armed !== 'true') return;
+    dom.recentClear.dataset.armed = 'false';
+    dom.recentClear.textContent = 'Clear all';
+  }, 4000);
 });
 
 /* ================================================================== *

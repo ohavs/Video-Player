@@ -29,7 +29,10 @@
             <button class="btn-primary" data-role="openButton" type="button">Open video…</button>
             <p class="welcome-drop">or drop a file anywhere in this window</p>
             <div class="recent" data-role="recent" hidden>
-              <h2 class="recent-title">Recent</h2>
+              <div class="recent-head">
+                <h2 class="recent-title">Recent</h2>
+                <button class="recent-clear" data-role="recentClear" type="button" hidden>Clear all</button>
+              </div>
               <div class="recent-list" data-role="recentList"></div>
             </div>
           </div>

@@ -375,6 +375,49 @@ app.whenReady().then(async () => {
     ready.shown && ready.hasButton, ready.text);
   await shot(win, '10-update-ready');
 
+  /* ---- 13. removing entries from the recent list ---- */
+  // Reload so the welcome screen is the real one, populated from disk.
+  win.webContents.reload();
+  await wait(3000);
+
+  const recentBefore = await evaluate(
+    win,
+    `(() => ({ empty: document.getElementById('app').dataset.state === 'empty',
+               rows: document.querySelectorAll('.recent-row').length,
+               clearShown: !document.querySelector('[data-role="recentClear"]').hidden }))()`,
+  );
+  check('recent list is populated after a restart',
+    recentBefore.empty && recentBefore.rows === 1 && recentBefore.clearShown,
+    `${recentBefore.rows} row(s)`);
+  await shot(win, '11-recent-list');
+
+  const forgetBtn = await rectOf(win, '.recent-row [data-cmd="forget"]');
+  if (forgetBtn) click(win, forgetBtn.x, forgetBtn.y);
+  await wait(900);
+
+  const afterForget = await evaluate(
+    win,
+    `(() => ({ rows: document.querySelectorAll('.recent-row').length,
+               toast: (document.querySelector('.toast') || {}).textContent || '' }))()`,
+  );
+  const libraryAfterForget = JSON.parse(fs.readFileSync(path.join(app.getPath('userData'), 'library.json'), 'utf8'));
+  check('removing an entry clears it from the list and from disk',
+    afterForget.rows === 0 && Object.keys(libraryAfterForget).length === 0,
+    `${afterForget.rows} row(s) left, ${Object.keys(libraryAfterForget).length} on disk`);
+  check('removal warns that its bookmarks went with it',
+    /4 bookmarks/.test(afterForget.toast), afterForget.toast.trim());
+  await shot(win, '12-recent-removed');
+
+  const undoBtn = await rectOf(win, '.toast-action');
+  if (undoBtn) click(win, undoBtn.x, undoBtn.y);
+  await wait(1200);
+
+  const afterUndo = await evaluate(win, `document.querySelectorAll('.recent-row').length`);
+  const libraryAfterUndo = JSON.parse(fs.readFileSync(path.join(app.getPath('userData'), 'library.json'), 'utf8'));
+  const restored = Object.values(libraryAfterUndo)[0]?.bookmarks?.length ?? 0;
+  check('undo restores the entry and its bookmarks',
+    afterUndo === 1 && restored === 4, `${afterUndo} row(s), ${restored} bookmarks back`);
+
   /* ---- summary ---- */
   const failed = results.filter((r) => !r.passed);
   console.log(`\nRESULT ${results.length - failed.length}/${results.length} checks passed`);
