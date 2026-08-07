@@ -1,11 +1,11 @@
 name: Release
 
-# Tag a commit and this builds the Windows installer and publishes it as a
-# GitHub Release. The app's updater reads that same release feed, so shipping a
-# new version is: bump the version, tag, push.
+# Builds the Windows installer and publishes it as a GitHub Release. The app's
+# updater reads that same release feed, so this workflow is the whole shipping
+# process.
 #
-#   npm version patch
-#   git push --follow-tags
+# To release: bump "version" in package.json, push, then run this workflow.
+# The tag is created here — there is nothing to tag by hand.
 
 on:
   push:
@@ -26,6 +26,34 @@ jobs:
         with:
           node-version: 22
           cache: npm
+
+      - name: Read version
+        id: version
+        shell: pwsh
+        run: |
+          $version = node -p "require('./package.json').version"
+          "value=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          Write-Host "Releasing v$version"
+
+      # GitHub rejects a published (non-draft) release whose tag does not exist:
+      # "Published releases must have a valid tag". electron-builder does not
+      # create the tag itself, so it is created here before the build runs.
+      # A tag pushed with GITHUB_TOKEN does not re-trigger this workflow, so
+      # this cannot loop.
+      - name: Ensure tag exists
+        shell: pwsh
+        run: |
+          $tag = "v${{ steps.version.outputs.value }}"
+          $existing = git ls-remote --tags origin "refs/tags/$tag"
+          if ($existing) {
+            Write-Host "$tag already exists, reusing it"
+          } else {
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git tag $tag
+            git push origin $tag
+            Write-Host "Created $tag"
+          }
 
       - run: npm ci
 
