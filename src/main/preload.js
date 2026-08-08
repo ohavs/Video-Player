@@ -39,6 +39,15 @@ contextBridge.exposeInMainWorld('host', {
   forgetEntry: (fingerprint) => ipcRenderer.invoke('library:forget', fingerprint),
   recentFiles: (limit) => ipcRenderer.invoke('library:recent', limit),
 
+  // Cutting and converting. Each call picks a destination and runs to
+  // completion; interim progress arrives on onClipProgress.
+  clipsAvailable: () => ipcRenderer.invoke('clips:available'),
+  exportClip: (payload) => ipcRenderer.invoke('clips:trim', payload),
+  convertFile: (payload) => ipcRenderer.invoke('clips:convert', payload),
+  cancelClip: () => ipcRenderer.invoke('clips:cancel'),
+  revealFile: (filePath) => ipcRenderer.invoke('clips:reveal', filePath),
+  onClipProgress: listen('clips:progress'),
+
   // Updates
   getUpdateState: () => ipcRenderer.invoke('updates:state'),
   checkForUpdates: () => ipcRenderer.invoke('updates:check'),

@@ -25,6 +25,7 @@ export const ACTION_GROUPS = [
   { id: 'navigation', label: 'Navigation' },
   { id: 'audio', label: 'Audio' },
   { id: 'bookmarks', label: 'Bookmarks' },
+  { id: 'clip', label: 'Trim' },
   { id: 'view', label: 'View' },
 ];
 
@@ -52,6 +53,13 @@ export const ACTIONS = [
   { id: 'prevBookmark', label: 'Previous bookmark', group: 'bookmarks', defaults: ['BracketLeft'] },
   { id: 'nextBookmark', label: 'Next bookmark', group: 'bookmarks', defaults: ['BracketRight'] },
   { id: 'toggleBookmarkList', label: 'Bookmark list', group: 'bookmarks', defaults: ['Mod+KeyB'] },
+
+  // Editors conventionally put in/out on bare I and O, but I already toggles
+  // picture-in-picture here and silently stealing it would break saved keymaps.
+  // Shift keeps the mnemonic without the collision; both are rebindable.
+  { id: 'toggleTrim', label: 'Trim & export', group: 'clip', defaults: ['KeyC'] },
+  { id: 'trimIn', label: 'Set clip start', group: 'clip', defaults: ['Shift+KeyI'] },
+  { id: 'trimOut', label: 'Set clip end', group: 'clip', defaults: ['Shift+KeyO'] },
 
   { id: 'fullscreen', label: 'Fullscreen', group: 'view', defaults: ['KeyF'] },
   { id: 'pip', label: 'Picture in picture', group: 'view', defaults: ['KeyI'] },

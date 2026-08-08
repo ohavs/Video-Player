@@ -6,6 +6,7 @@ const path = require('path');
 const { Readable } = require('stream');
 const store = require('./store');
 const updater = require('./updater');
+const clips = require('./clips');
 
 const VIDEO_EXTENSIONS = ['mp4', 'm4v', 'webm', 'ogv', 'ogg', 'mov', 'mkv', 'avi'];
 
@@ -187,6 +188,78 @@ async function showOpenDialog() {
 }
 
 /* ------------------------------------------------------------------ *
+ * Exporting clips
+ * ------------------------------------------------------------------ */
+
+// Strips the characters Windows refuses outright, so a bookmark label can be
+// offered as part of a filename without the save dialog rejecting it.
+function safeFileName(value, fallback) {
+  const cleaned = String(value || '')
+    .replace(/[\\/:*?"<>|]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 120);
+  return cleaned || fallback;
+}
+
+async function showSaveClipDialog({ directory, suggestedName, extension }) {
+  const ext = (extension || 'mp4').replace(/^\./, '').toLowerCase();
+  const result = await dialog.showSaveDialog(mainWindow, {
+    title: 'Export clip',
+    defaultPath: path.join(directory || app.getPath('videos'), `${suggestedName}.${ext}`),
+    filters: [
+      { name: ext.toUpperCase(), extensions: [ext] },
+      { name: 'All files', extensions: ['*'] },
+    ],
+    properties: ['createDirectory', 'showOverwriteConfirmation'],
+  });
+  if (result.canceled || !result.filePath) return null;
+  return result.filePath;
+}
+
+// One call from the renderer covers picking a destination and running the job,
+// so the UI never has to hold a half-started export across two round trips.
+// Progress arrives separately on 'clips:progress'.
+async function runClipJob(kind, payload) {
+  const send = (state) => {
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('clips:progress', state);
+  };
+
+  const input = payload?.input;
+  if (!input) return { status: 'error', message: 'No file is open.' };
+
+  const base = path.basename(input, path.extname(input));
+  const extension = kind === 'convert' ? 'mp4' : payload.extension || 'mp4';
+  const suggested = safeFileName(payload.suggestedName, `${base} clip`);
+
+  let output;
+  try {
+    output = await showSaveClipDialog({
+      directory: path.dirname(input),
+      suggestedName: suggested,
+      extension,
+    });
+  } catch (err) {
+    return { status: 'error', message: String(err?.message || err) };
+  }
+  if (!output) return { status: 'canceled' };
+
+  try {
+    if (kind === 'convert') {
+      return await clips.convert({ input, output, totalSeconds: payload.totalSeconds }, send);
+    }
+    return await clips.trim(
+      { input, output, start: payload.start, end: payload.end, mode: payload.mode },
+      send,
+    );
+  } catch (err) {
+    const state = { status: 'error', kind, message: String(err?.message || err) };
+    send(state);
+    return state;
+  }
+}
+
+/* ------------------------------------------------------------------ *
  * Window and menu
  * ------------------------------------------------------------------ */
 
@@ -259,6 +332,8 @@ function buildMenu() {
         { type: 'separator' },
         { label: 'Add Bookmark', click: () => send('menu:action', 'addBookmark') },
         { label: 'Bookmark List', click: () => send('menu:action', 'toggleBookmarkList') },
+        { type: 'separator' },
+        { label: 'Trim & Export…', click: () => send('menu:action', 'toggleTrim') },
       ],
     },
     {
@@ -301,6 +376,15 @@ function registerIpc() {
     return true;
   });
   ipcMain.handle('library:recent', (_e, limit) => store.recent(limit));
+
+  ipcMain.handle('clips:available', () => clips.available());
+  ipcMain.handle('clips:trim', (_e, payload) => runClipJob('trim', payload));
+  ipcMain.handle('clips:convert', (_e, payload) => runClipJob('convert', payload));
+  ipcMain.handle('clips:cancel', () => clips.cancel());
+  ipcMain.handle('clips:reveal', (_e, filePath) => {
+    if (typeof filePath === 'string' && filePath) shell.showItemInFolder(filePath);
+    return true;
+  });
 
   ipcMain.handle('updates:state', () => updater.getState());
   ipcMain.handle('updates:check', () => updater.check({ silent: false }));
@@ -372,7 +456,12 @@ if (!app.requestSingleInstanceLock()) {
   });
 
   // Last line of defence for anything still sitting in the debounce window.
-  app.on('will-quit', () => store.flushAllSync());
+  app.on('will-quit', () => {
+    store.flushAllSync();
+    // An export still running would otherwise keep a child process alive after
+    // the window is gone.
+    clips.shutdown();
+  });
 }
 
 // Exported for tooling that drives the app (see scripts/): building a file

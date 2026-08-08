@@ -13,6 +13,8 @@
 
   --accent: #ff0000;          /* played time */
   --mark: #ffd400;            /* bookmarks — must read against the accent */
+  --trim: #4ac9ff;            /* the clip selection — third role, third hue */
+  --trim-ink: #062430;        /* text on a filled --trim surface */
   --track: rgba(255, 255, 255, 0.22);
   --track-buffered: rgba(255, 255, 255, 0.42);
   --track-hover: rgba(255, 255, 255, 0.55);
@@ -329,10 +331,12 @@ kbd {
  * Toasts
  * ------------------------------------------------------------------ */
 
+/* --stack-lift is set from the real height of the trim bar when it is open, so
+   a toast never lands on top of it. Zero the rest of the time. */
 .toasts {
   position: absolute;
   left: 50%;
-  bottom: calc(var(--control-h) + 44px);
+  bottom: calc(var(--control-h) + 44px + var(--stack-lift, 0px));
   transform: translateX(-50%);
   display: flex;
   flex-direction: column;
@@ -460,7 +464,8 @@ kbd {
    it would send the playhead backwards. */
 [dir="rtl"] .controls,
 [dir="rtl"] .scrubber,
-[dir="rtl"] .composer-host {
+[dir="rtl"] .composer-host,
+[dir="rtl"] .trim-host {
   direction: ltr;
 }
 

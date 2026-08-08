@@ -61,6 +61,10 @@ export class Controls {
             ${icon('list')}
             <span class="cbtn-count" data-role="bookmarkCount" hidden>0</span>
           </button>
+          <button class="cbtn" data-action="toggleTrim" data-role="trim"
+                  type="button" aria-label="Trim and export" hidden>
+            ${icon('scissors')}
+          </button>
           <button class="cbtn" data-action="openSettings" data-role="settings"
                   type="button" aria-label="Settings">
             ${icon('settings')}
@@ -91,6 +95,7 @@ export class Controls {
     this.pipEl = q('pip');
     this.fullscreenEl = q('fullscreen');
     this.bookmarkListEl = q('bookmarkList');
+    this.trimEl = q('trim');
   }
 
   bind() {
@@ -176,6 +181,16 @@ export class Controls {
     this.bookmarkListEl.classList.toggle('is-active', Boolean(open));
   }
 
+  setTrimOpen(open) {
+    this.trimEl.classList.toggle('is-active', Boolean(open));
+  }
+
+  // Hidden rather than disabled when the engine is missing: a permanently dead
+  // button teaches nothing, and this is not a state the user can fix from here.
+  setTrimAvailable(available) {
+    this.trimEl.hidden = !available;
+  }
+
   setEnabled(enabled) {
     this.root.classList.toggle('is-disabled', !enabled);
     for (const button of this.root.querySelectorAll('[data-action]')) {
@@ -195,6 +210,7 @@ export class Controls {
       mute: 'Mute',
       addBookmark: 'Add bookmark',
       toggleBookmarkList: 'Bookmark list',
+      toggleTrim: 'Trim & export',
       openSettings: 'Settings',
       pip: 'Picture in picture',
       fullscreen: 'Fullscreen',

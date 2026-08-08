@@ -349,6 +349,66 @@
   transform: scale(1);
 }
 
+/* ---- clip selection ---- *
+ * Drawn over the full height of the hit area rather than over the 3px bar: at
+ * bar height the handles would be too small to grab and the dimming would read
+ * as a rendering fault rather than as "this part is cut away". */
+
+.scrub-trim {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.trim-shade {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.58);
+}
+
+.trim-band {
+  position: absolute;
+  top: 1px;
+  bottom: 1px;
+  border: 2px solid var(--trim);
+  border-radius: 3px;
+  background: rgba(74, 201, 255, 0.13);
+}
+
+.trim-grip {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 5px;
+  margin-left: -2.5px;
+  border-radius: 3px;
+  background: var(--trim);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.55);
+  pointer-events: auto;
+  cursor: ew-resize;
+  touch-action: none;
+  transition: transform 0.12s var(--ease);
+}
+
+/* The visible grip stays slim; this is the part the pointer actually has to
+   hit, which is much more forgiving than 5px. */
+.trim-grip::before {
+  content: '';
+  position: absolute;
+  top: -5px;
+  bottom: -5px;
+  left: -8px;
+  right: -8px;
+}
+
+.trim-grip:hover,
+.trim-grip:focus-visible,
+.scrubber.is-trimming .trim-grip {
+  transform: scaleX(1.5);
+}
+
 .scrub-tip {
   position: absolute;
   bottom: 22px;
@@ -488,6 +548,218 @@
 }
 
 /* ------------------------------------------------------------------ *
+ * Trim bar
+ * ------------------------------------------------------------------ */
+
+.trim-host {
+  padding: 0 var(--pad-x) 8px;
+}
+
+.trimbar {
+  padding: 8px 10px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow);
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity 0.14s var(--ease), transform 0.14s var(--ease);
+}
+
+.trimbar.is-open {
+  opacity: 1;
+  transform: none;
+}
+
+.trim-idle,
+.trim-busy {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.trim-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--trim);
+  font-size: 12.5px;
+  font-weight: 700;
+}
+
+.trim-badge .icon {
+  width: 18px;
+  height: 18px;
+}
+
+.trim-marks {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.trim-mark,
+.trim-length {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  padding: 4px 9px;
+  border-radius: var(--radius-sm);
+  line-height: 1.15;
+}
+
+.trim-mark {
+  background: var(--surface-2);
+  transition: background 0.12s var(--ease);
+}
+
+.trim-mark:hover {
+  background: var(--surface-3);
+}
+
+.trim-mark small,
+.trim-length small {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.trim-mark b,
+.trim-length b {
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+
+.trim-length b {
+  color: var(--trim);
+}
+
+.trim-set {
+  padding: 5px 9px;
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.09);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-dim);
+  transition: background 0.12s var(--ease), color 0.12s var(--ease);
+}
+
+.trim-set:hover {
+  background: rgba(255, 255, 255, 0.18);
+  color: var(--text);
+}
+
+.trim-span {
+  width: 14px;
+  height: 1px;
+  background: var(--line);
+}
+
+.trim-tail {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-inline-start: auto;
+}
+
+/* The mode chips borrow the shared chip, but not its bookmark yellow — in this
+   bar the highlighted thing is the clip, and the clip is --trim. */
+.trim-modes .chip.is-on {
+  background: var(--trim);
+  color: var(--trim-ink);
+}
+
+.trim-export {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 13px;
+  border-radius: 999px;
+  background: var(--trim);
+  color: var(--trim-ink);
+  font-size: 12.5px;
+  font-weight: 700;
+}
+
+.trim-export .icon {
+  width: 16px;
+  height: 16px;
+}
+
+.trim-export:hover {
+  filter: brightness(1.08);
+}
+
+.trim-export:disabled {
+  opacity: 0.4;
+  filter: none;
+  cursor: default;
+}
+
+.trim-busy-text {
+  font-size: 12.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.trim-progress {
+  flex: 1;
+  min-width: 80px;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.14);
+  overflow: hidden;
+}
+
+.trim-progress > span {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: var(--trim);
+  transition: width 0.2s linear;
+}
+
+/* No total to measure against — a bar that slides says "working" without
+   claiming a percentage the job cannot know. */
+.trimbar.is-indeterminate .trim-progress > span {
+  width: 34%;
+  transition: none;
+  animation: trim-slide 1.3s var(--ease) infinite;
+}
+
+@keyframes trim-slide {
+  from { transform: translateX(-105%); }
+  to { transform: translateX(400%); }
+}
+
+.trim-cancel {
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.trim-cancel:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.trim-note {
+  margin-top: 7px;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--text-faint);
+}
+
+/* ------------------------------------------------------------------ *
  * Narrow windows
  * ------------------------------------------------------------------ */
 
@@ -504,5 +776,17 @@
 
   .composer {
     width: min(300px, calc(100vw - 32px));
+  }
+
+  /* The tail stops being a right-hand cluster and becomes its own line, so the
+     export button never gets squeezed off the edge. */
+  .trim-tail {
+    margin-inline-start: 0;
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .trim-note {
+    display: none;
   }
 }

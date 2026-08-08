@@ -98,6 +98,28 @@ Defaults follow the conventions most players share:
 | <kbd>0</kbd>–<kbd>9</kbd> | jump to 0%–90% |
 | <kbd>B</kbd> | add bookmark |
 | <kbd>[</kbd> <kbd>]</kbd> | previous / next bookmark |
+| <kbd>C</kbd> | trim & export |
+| <kbd>Shift</kbd>+<kbd>I</kbd> / <kbd>O</kbd> | set clip start / end |
+
+Editors conventionally put in and out on bare <kbd>I</kbd> and <kbd>O</kbd>, but <kbd>I</kbd>
+already toggles picture-in-picture here and quietly reassigning it would break keymaps people
+had already saved. Both are rebindable if you want them bare.
+
+**Trim & export** — cut a clip out of the open file and save it.
+
+- <kbd>C</kbd> or the ✂ button enters trim mode. Two handles appear on the timeline and
+  everything outside them dims: what stays lit is what you get.
+- If you open trim while inside a bookmark chapter, that chapter is already selected. Mark the
+  moment while watching, then cut it without hunting for it twice.
+- Drag the handles, or press **Set** to move a mark to the playhead
+  (<kbd>Shift</kbd>+<kbd>I</kbd> / <kbd>Shift</kbd>+<kbd>O</kbd>). Arrow keys nudge a focused
+  handle; hold <kbd>Shift</kbd> for a coarser step.
+- Two modes:
+  - **Fast** copies the streams without re-encoding — seconds to finish, no quality lost. The
+    cut lands on the nearest keyframe, so a clip can begin up to a couple of seconds *early*.
+    Never late: the moment you marked is always inside the result.
+  - **Exact** re-encodes to cut on the precise frame. Slower, slightly lossy.
+- A clip taken from a titled chapter is offered that title as its filename.
 
 **Opening files** — file dialog, drag and drop anywhere in the window, "Open with" from the OS,
 or the recent list on the welcome screen (which shows how many bookmarks each file has).
@@ -105,10 +127,27 @@ Playback position is remembered per file.
 
 ## Codec support
 
-Playback uses Chromium's decoders. **MP4/H.264/AAC and WebM/VP8/VP9 work.** MKV containers,
-H.265/HEVC and AC3 audio generally will not — the player reports this clearly rather than
-failing silently. Bundling FFmpeg would lift that limit and is the main thing standing between
-this and "plays anything".
+Playback uses Chromium's decoders. **MP4/H.264/AAC and WebM/VP8/VP9 play directly.** MKV
+containers, H.265/HEVC and AC3 audio generally do not.
+
+When a file cannot be decoded, the player says so and offers **Make a playable copy**, which
+re-encodes it to H.264/AAC MP4 with the bundled engine and opens the result. The original is
+never touched.
+
+### The bundled engine
+
+Trimming and conversion use a static [ffmpeg](https://ffmpeg.org) binary shipped inside the app,
+rather than one the user is expected to install. It is unpacked out of the asar archive at build
+time (`asarUnpack`) because nothing can be executed from inside an archive, and it is located at
+runtime by `src/main/ffmpeg.js`.
+
+This is what makes the installer large — roughly 180 MB against 100 MB without it. That is the
+whole cost of the feature, and it is paid once at install.
+
+`ffmpeg-static` ships a **GPL-3.0** build of ffmpeg. The app invokes it as a separate process
+rather than linking against it, so the app's own MIT licence stands, but any installer you
+distribute contains GPL software and carries that obligation with it. The upstream licence text
+travels inside the package.
 
 ## Files with a broken duration header
 
@@ -129,6 +168,8 @@ src/
     main.js       Electron entry: window, menu, file handling, media:// protocol
     preload.js    the entire renderer↔Node bridge (no raw ipc reaches the page)
     store.js      atomic JSON persistence in userData
+    ffmpeg.js     finds and runs the bundled binary; parses its progress stream
+    clips.js      the export jobs (trim, convert) — one slot, cancellable
   renderer/
     index.html
     styles/       base.css (tokens, shell) · player.css (controls) · panels.css
@@ -138,6 +179,7 @@ src/
       controls.js   control bar
       progress.js   the scrubber: buffered ranges, hover, drag, chapter segments
       bookmarks.js  bookmark model + the inline composer
+      trim.js       the trim bar and export progress
       panels.js     settings menu, shortcuts editor, bookmark list
       keyboard.js   global shortcut dispatch
       keymap.js     bindings, defaults, conflict detection
@@ -147,6 +189,7 @@ src/
 scripts/
   drive.js        launches the real app under Xvfb, drives it with synthetic
                   input, asserts behaviour and captures screenshots
+  drive-trim.js   the same, for trim mode and a real export to disk
 ```
 
 Clicks and keypresses both resolve to the same action ids, dispatched in one `switch` in
@@ -154,19 +197,41 @@ Clicks and keypresses both resolve to the same action ids, dispatched in one `sw
 
 ## Verifying
 
-`scripts/drive.js` boots the actual app — nothing stubbed — and checks 22 behaviours end to
-end: media loads over the custom protocol with working byte-range seeking, the composer captures
-the right timestamp, four bookmarks produce five timeline segments, hover tooltips carry chapter
-titles, submenus navigate, a rebound key starts working while the old one stops, and bookmarks
-reach disk.
+Both drivers boot the actual app — nothing stubbed — and assert against what really happens.
+
+`scripts/drive.js` covers **29 behaviours**: media loads over the custom protocol with working
+byte-range seeking, the composer captures the right timestamp, four bookmarks produce five
+timeline segments, hover tooltips carry chapter titles, submenus navigate, a rebound key starts
+working while the old one stops, a lying duration header falls back to `seekable`, and bookmarks
+reach disk and come back after a restart.
+
+`scripts/drive-trim.js` covers **24 more**, ending in files on disk whose durations are measured
+back with ffmpeg: a fast cut keeps the whole marked range, an exact cut is frame accurate, the
+handles refuse to cross, a chapter preselects the cut and names the file, progress and
+completion are reported, and backing out of the save dialog changes nothing. The only stub is
+the native save dialog, which synthetic input cannot answer.
 
 ```bash
-VP_VIDEO=/path/to/clip.webm VP_SHOT_DIR=/tmp/shots \
-  xvfb-run -a ./node_modules/.bin/electron --no-sandbox scripts/drive.js
+VP_VIDEO=/path/to/clip.mp4 VP_SHOT_DIR=/tmp/shots \
+  xvfb-run -a ./node_modules/.bin/electron --no-sandbox --disable-gpu scripts/drive.js
+
+VP_VIDEO=/path/to/clip.mp4 VP_SHOT_DIR=/tmp/shots \
+  xvfb-run -a ./node_modules/.bin/electron --no-sandbox --disable-gpu scripts/drive-trim.js
 ```
+
+Both write into the default user data directory. Pass `--user-data-dir=<tmp>` to run against a
+clean profile — a previous run leaves rebound keys and library entries behind, which will fail
+later runs for reasons that have nothing to do with the code.
 
 ## Not built
 
 Subtitles, hover thumbnail previews on the scrubber, playlists, and audio track selection.
 Thumbnails are the notable gap: unlike a streaming service there is no pre-generated storyboard,
 so they have to be produced locally by seeking a hidden video into a canvas.
+
+Trimming cuts **one clip at a time**. Exporting every bookmarked chapter in one pass is the
+obvious next step and the engine already supports it — what is missing is a job queue and a
+folder picker instead of a single save dialog.
+
+This is a trimmer, not an editor. Joining clips, multiple tracks, transitions and titles all
+need a document model and a compositor, which is a different program with a different shape.

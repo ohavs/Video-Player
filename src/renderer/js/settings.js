@@ -32,6 +32,9 @@ export const DEFAULTS = {
   showBookmarkLabels: true,
   jumpToBookmarkOnSave: false,
 
+  // Trimming
+  trimMode: 'fast',         // 'fast' (stream copy) | 'exact' (re-encode)
+
   // Interface
   hideControlsDelay: 3000,
   language: 'en',           // 'en' | 'he' — drives dir=rtl
@@ -51,6 +54,7 @@ const NUMBER_RANGES = {
 
 const ENUMS = {
   timelineMode: ['segments', 'points'],
+  trimMode: ['fast', 'exact'],
   language: ['en', 'he'],
 };
 

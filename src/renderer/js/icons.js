@@ -57,6 +57,11 @@ const STROKED = {
   clock: 'M12 3.6a8.4 8.4 0 100 16.8 8.4 8.4 0 000-16.8zM12 7.3V12l3.4 2',
   plus: 'M12 5.5v13M5.5 12h13',
   reset: 'M4.5 11a7.5 7.5 0 111.9 5.6M4.5 16.5V11h5.5',
+  // Two ring handles and two crossing blades — the blades meet near the middle
+  // so the shape still reads as scissors at 24px rather than as an X.
+  scissors:
+    'M6.6 13.4a2.8 2.8 0 100 5.6 2.8 2.8 0 000-5.6M17.4 13.4a2.8 2.8 0 100 5.6 2.8 2.8 0 000-5.6M8.6 14.2L19 3.5M15.4 14.2L5 3.5',
+  download: 'M12 3.5v11M7.5 10L12 14.5 16.5 10M4.5 19.5h15',
 };
 
 function svg(inner, { size = 24, extraClass = '' } = {}) {

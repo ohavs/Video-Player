@@ -8,6 +8,7 @@ import { Scrubber } from './progress.js';
 import { KeyboardLayer } from './keyboard.js';
 import { BookmarkStore, BookmarkComposer } from './bookmarks.js';
 import { SettingsMenu, ShortcutsSheet, BookmarkPanel } from './panels.js';
+import { TrimBar, describeResult } from './trim.js';
 import { settings, SPEED_STEPS } from './settings.js';
 import { bindingLabel } from './keymap.js';
 import { icon } from './icons.js';
@@ -31,6 +32,7 @@ const dom = {
   chrome: el('chrome'),
   controlsHost: el('controls'),
   composerHost: el('composerHost'),
+  trimHost: el('trimHost'),
   menuHost: el('menuHost'),
   panelHost: el('panelHost'),
   sheetHost: el('sheetHost'),
@@ -47,6 +49,10 @@ let positionSaveAt = 0;
 let idleTimer = null;
 let suppressAutoHide = false;
 let pendingResume = 0;   // resume point held until metadata gives us a duration
+
+let clipsReady = false;  // is the bundled video engine actually present
+let trimRange = null;    // { in, out } in display seconds while trimming
+let activeJob = null;    // the export or conversion currently running
 
 /* ================================================================== *
  * UI construction
@@ -73,9 +79,21 @@ const scrubber = new Scrubber(controls.scrubberHost, {
     suppressAutoHide = false;
     wake();
   },
+  onTrimStart: () => {
+    suppressAutoHide = true;
+  },
+  onTrimDrag: (edge, time) => moveTrimEdge(edge, time),
+  onTrimEnd: () => {
+    suppressAutoHide = false;
+    wake();
+  },
 });
 
 const composer = new BookmarkComposer(dom.composerHost);
+
+const trimBar = new TrimBar(dom.trimHost, {
+  onCommand: (command, value) => runTrimCommand(command, value),
+});
 
 const menu = new SettingsMenu(dom.menuHost, {
   settings,
@@ -214,6 +232,21 @@ function runAction(action) {
       controls.setBookmarkListOpen(bookmarkPanel.open);
       break;
 
+    case 'toggleTrim':
+      if (trimRange) closeTrim();
+      else openTrim();
+      break;
+    // Placing a mark is also a way into trim mode: pressing "set clip start"
+    // while not trimming should start the cut, not do nothing.
+    case 'trimIn':
+      if (!trimRange) openTrim();
+      if (trimRange) moveTrimEdge('in', player.currentTime);
+      break;
+    case 'trimOut':
+      if (!trimRange) openTrim();
+      if (trimRange) moveTrimEdge('out', player.currentTime);
+      break;
+
     case 'fullscreen':
       player.enterFullscreen(dom.stage);
       break;
@@ -323,6 +356,208 @@ store.subscribe((items) => {
 });
 
 /* ================================================================== *
+ * Trimming
+ * ================================================================== */
+
+// A clip shorter than this is not a clip, and ffmpeg would reject it anyway.
+const MIN_CLIP = 0.1;
+
+// Opening trim inside a chapter selects that chapter. It is the reason the
+// bookmarks exist: you marked the moment while watching, so the cut should
+// already be scoped to it rather than making you find it twice.
+function chapterRangeAt(time) {
+  const segments = store.segments(player.duration);
+  if (segments.length < 2) return null;
+  const found = segments.find((s) => time >= s.start && time < s.end) || segments[segments.length - 1];
+  return { in: found.start, out: found.end };
+}
+
+function openTrim() {
+  if (!currentFile || !clipsReady) return;
+  const duration = player.duration;
+  if (!duration) {
+    toast('This file has no readable length to cut.');
+    return;
+  }
+
+  trimRange = chapterRangeAt(player.currentTime) || { in: 0, out: duration };
+  trimBar.setMode(settings.get('trimMode'));
+  trimBar.show();
+  controls.setTrimOpen(true);
+  syncTrim();
+  requestAnimationFrame(liftToasts);
+  wake();
+}
+
+function closeTrim() {
+  // A running job owns the bar, so leaving trim mode must not pull it out from
+  // under the progress the user is watching.
+  if (activeJob) {
+    toast('Cancel the export first');
+    return;
+  }
+  trimRange = null;
+  trimBar.hide();
+  controls.setTrimOpen(false);
+  scrubber.setTrim(null);
+  liftToasts();
+  wake();
+}
+
+function syncTrim() {
+  scrubber.setTrim(trimRange);
+  if (trimRange) trimBar.setRange(trimRange, player.duration);
+}
+
+// Measured rather than guessed: the bar is one line taller when the note wraps,
+// and a hardcoded offset would leave the toast overlapping it at some widths.
+function liftToasts() {
+  const lift = trimBar.open ? trimBar.root.offsetHeight + 8 : 0;
+  dom.app.style.setProperty('--stack-lift', `${lift}px`);
+}
+
+// A selection belongs to one file's timeline, so it cannot survive opening
+// another. An export already running keeps the bar until it reports back.
+function resetTrimForNewFile() {
+  trimRange = null;
+  scrubber.setTrim(null);
+  controls.setTrimOpen(false);
+  if (!activeJob) trimBar.hide();
+  liftToasts();
+}
+
+function moveTrimEdge(edge, time) {
+  if (!trimRange) return;
+  const duration = player.duration;
+  let next = clamp(time, 0, duration);
+
+  // The handles are not allowed to cross; each stops a hair short of the other.
+  if (edge === 'in') next = Math.min(next, trimRange.out - MIN_CLIP);
+  else next = Math.max(next, trimRange.in + MIN_CLIP);
+
+  trimRange[edge] = clamp(next, 0, duration);
+  syncTrim();
+}
+
+function runTrimCommand(command, value) {
+  if (command === 'close') {
+    closeTrim();
+    return;
+  }
+  if (command === 'cancel') {
+    globalThis.host?.cancelClip();
+    return;
+  }
+  if (!trimRange) return;
+
+  switch (command) {
+    case 'setIn':
+      moveTrimEdge('in', player.currentTime);
+      break;
+    case 'setOut':
+      moveTrimEdge('out', player.currentTime);
+      break;
+    case 'gotoIn':
+      player.seek(trimRange.in);
+      paintTime(true);
+      break;
+    case 'gotoOut':
+      player.seek(trimRange.out);
+      paintTime(true);
+      break;
+    case 'mode':
+      settings.set('trimMode', value);
+      trimBar.setMode(settings.get('trimMode'));
+      break;
+    case 'export':
+      exportClip();
+      break;
+    default:
+      break;
+  }
+  wake();
+}
+
+// "0m10s" / "1h02m30s" — a stamp that survives being part of a filename on
+// every platform, which "0:10" does not on Windows.
+function compactStamp(seconds) {
+  const total = Math.max(0, Math.floor(seconds));
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  const pad = (n) => String(n).padStart(2, '0');
+  return h ? `${h}h${pad(m)}m${pad(s)}s` : `${m}m${pad(s)}s`;
+}
+
+function suggestedClipName() {
+  const base = (currentFile?.name || 'clip').replace(/\.[^.]+$/, '');
+  // When the selection is exactly a titled chapter, that title is a far better
+  // filename than a pair of timestamps.
+  const chapter = chapterRangeAt(trimRange.in + 0.01);
+  const title = store.activeAt(trimRange.in + 0.01)?.text;
+  const matchesChapter =
+    chapter && Math.abs(chapter.in - trimRange.in) < 0.05 && Math.abs(chapter.out - trimRange.out) < 0.05;
+
+  if (matchesChapter && title) return `${base} - ${title}`;
+  return `${base} - ${compactStamp(trimRange.in)} to ${compactStamp(trimRange.out)}`;
+}
+
+async function exportClip() {
+  if (!trimRange || !currentFile || activeJob) return;
+
+  const mode = settings.get('trimMode');
+  // A stream copy keeps the original streams, so it has to stay in a container
+  // that accepts them; a re-encode always produces H.264 and lands in MP4.
+  const sourceExtension = (currentFile.name.match(/\.([^.]+)$/)?.[1] || 'mp4').toLowerCase();
+  const extension = mode === 'exact' ? 'mp4' : sourceExtension;
+
+  const result = await globalThis.host?.exportClip({
+    input: currentFile.path,
+    start: trimRange.in,
+    end: trimRange.out,
+    mode,
+    extension,
+    suggestedName: suggestedClipName(),
+  });
+
+  reportJobResult(result);
+}
+
+async function convertCurrent() {
+  if (!currentFile || activeJob) return;
+
+  const base = currentFile.name.replace(/\.[^.]+$/, '');
+  const result = await globalThis.host?.convertFile({
+    input: currentFile.path,
+    totalSeconds: player.duration || 0,
+    suggestedName: `${base} (playable)`,
+  });
+
+  reportJobResult(result, {
+    onDone: (output) => openPath(output),
+  });
+}
+
+function reportJobResult(result, { onDone } = {}) {
+  if (!result || result.status === 'canceled') return;
+
+  if (result.status === 'error') {
+    toast(result.message || 'The export failed.', { duration: 8000 });
+    return;
+  }
+  if (result.status !== 'done') return;
+
+  toast(describeResult(result), {
+    duration: 8000,
+    action: {
+      label: 'Show file',
+      onClick: () => globalThis.host?.revealFile(result.output),
+    },
+  });
+  onDone?.(result.output);
+}
+
+/* ================================================================== *
  * Speed and volume
  * ================================================================== */
 
@@ -369,6 +604,7 @@ async function openFile(file) {
 
   await store.flush();
   currentFile = file;
+  resetTrimForNewFile();
 
   dom.app.dataset.state = 'loaded';
   dom.title.textContent = file.name;
@@ -463,11 +699,21 @@ player.on('seeked', () => paintTime(true));
 
 player.on('error', () => {
   const code = dom.video.error?.code;
-  const message =
-    code === 4
+  // Code 4 is "this decoder cannot do it" — an MKV, or H.265, or anything else
+  // Chromium declines. The bundled engine can re-encode a copy that it will
+  // play, so the dead end becomes an offer rather than a shrug.
+  const unsupported = code === 4;
+  const canOffer = unsupported && clipsReady && Boolean(currentFile) && !activeJob;
+
+  toast(
+    unsupported
       ? 'This file cannot be played — the container or codec is not supported.'
-      : 'Something went wrong loading this file.';
-  toast(message, { duration: 6000 });
+      : 'Something went wrong loading this file.',
+    {
+      duration: canOffer ? 12000 : 6000,
+      action: canOffer ? { label: 'Make a playable copy', onClick: () => convertCurrent() } : null,
+    },
+  );
   console.error('[app] media error', dom.video.error);
 });
 
@@ -577,7 +823,8 @@ function wake() {
       menu.open ||
       shortcuts.open ||
       composer.isOpen ||
-      bookmarkPanel.open;
+      bookmarkPanel.open ||
+      trimBar.open;
     if (!busy) dom.app.classList.add('is-idle');
   }, delay);
 }
@@ -586,6 +833,10 @@ for (const event of ['pointermove', 'pointerdown', 'wheel']) {
   dom.stage.addEventListener(event, () => wake(), { passive: true });
 }
 window.addEventListener('keydown', () => wake());
+
+// The trim bar reflows at narrow widths, which changes how far the toasts have
+// to sit above it.
+window.addEventListener('resize', () => liftToasts());
 
 /* ---- drag and drop ---- */
 
@@ -887,6 +1138,16 @@ async function boot() {
   scrubber.setMode(settings.get('timelineMode'));
   scrubber.setDuration(0);
 
+  // The trim button only exists if the engine behind it does. A packaged build
+  // always ships it; a source checkout that skipped the install script may not.
+  try {
+    clipsReady = Boolean(await globalThis.host?.clipsAvailable());
+  } catch {
+    clipsReady = false;
+  }
+  controls.setTrimAvailable(clipsReady);
+  trimBar.setMode(settings.get('trimMode'));
+
   dom.welcomeKey.textContent = bindingLabel(settings.get('keymap').addBookmark?.[0]);
   document.documentElement.lang = settings.get('language');
   document.documentElement.dir = settings.get('language') === 'he' ? 'rtl' : 'ltr';
@@ -895,6 +1156,19 @@ async function boot() {
 
   globalThis.host?.onOpenFile((file) => openFile(file));
   globalThis.host?.onMenuAction((action) => runAction(action));
+
+  // Only the running state is handled here. Success, failure and cancellation
+  // all come back as the resolved value of the call that started the job, so
+  // reporting them from both places would double every message.
+  globalThis.host?.onClipProgress((state) => {
+    const running = state && state.status === 'running' ? state : null;
+    activeJob = running;
+    if (running && !trimBar.open) trimBar.show();
+    trimBar.setJob(running);
+    if (!running && !trimRange) trimBar.hide();
+    liftToasts();
+    if (running) wake();
+  });
 
   // Updates: the menu row mirrors whatever the main process reports, and a
   // downloaded update is the one state worth interrupting for.

@@ -30,8 +30,12 @@ export class Scrubber {
     this.pointerId = null;
     this.layoutKey = '';
 
+    this.trim = null;          // { in, out } in display seconds, or null
+    this.draggingEdge = null;  // 'in' | 'out' while a handle is held
+
     this.build();
     this.bind();
+    this.bindTrim();
   }
 
   build() {
@@ -45,6 +49,15 @@ export class Scrubber {
       <div class="scrub-hit" data-role="hit">
         <div class="scrub-track" data-role="track"></div>
         <div class="scrub-marks" data-role="marks"></div>
+        <div class="scrub-trim" data-role="trimLayer" hidden>
+          <span class="trim-shade" data-role="trimBefore"></span>
+          <span class="trim-shade" data-role="trimAfter"></span>
+          <span class="trim-band" data-role="trimBand"></span>
+          <span class="trim-grip" data-role="trimInGrip" data-edge="in"
+                role="slider" tabindex="0" aria-label="Clip start"></span>
+          <span class="trim-grip" data-role="trimOutGrip" data-edge="out"
+                role="slider" tabindex="0" aria-label="Clip end"></span>
+        </div>
         <div class="scrub-knob" data-role="knob"></div>
       </div>
       <div class="scrub-tip" data-role="tip" hidden>
@@ -60,6 +73,18 @@ export class Scrubber {
     this.tipEl = this.root.querySelector('[data-role="tip"]');
     this.tipTitleEl = this.root.querySelector('[data-role="tipTitle"]');
     this.tipTimeEl = this.root.querySelector('[data-role="tipTime"]');
+
+    // Not "trim": the control bar's trim button already owns that role name, and
+    // the scrubber lives inside the control bar — a shared name makes an
+    // unscoped lookup silently return whichever comes first in the document.
+    this.trimEl = this.root.querySelector('[data-role="trimLayer"]');
+    this.trimBeforeEl = this.root.querySelector('[data-role="trimBefore"]');
+    this.trimAfterEl = this.root.querySelector('[data-role="trimAfter"]');
+    this.trimBandEl = this.root.querySelector('[data-role="trimBand"]');
+    this.trimGrips = [
+      this.root.querySelector('[data-role="trimInGrip"]'),
+      this.root.querySelector('[data-role="trimOutGrip"]'),
+    ];
   }
 
   bind() {
@@ -115,6 +140,60 @@ export class Scrubber {
     });
   }
 
+  // The trim handles sit inside the scrub hit area, so every one of these
+  // listeners stops propagation: without it, grabbing a handle would also start
+  // a seek on the bar underneath and the playhead would jump to the handle.
+  bindTrim() {
+    for (const grip of this.trimGrips) {
+      grip.addEventListener('pointerdown', (event) => {
+        if (event.button !== 0 || !this.duration || !this.trim) return;
+        event.preventDefault();
+        event.stopPropagation();
+        this.draggingEdge = grip.dataset.edge;
+        grip.setPointerCapture(event.pointerId);
+        this.root.classList.add('is-trimming');
+        this.handlers.onTrimStart?.(this.draggingEdge);
+      });
+
+      grip.addEventListener('pointermove', (event) => {
+        if (!this.draggingEdge) return;
+        event.stopPropagation();
+        this.handlers.onTrimDrag?.(this.draggingEdge, this.ratioFromEvent(event) * this.duration);
+      });
+
+      const endDrag = (event) => {
+        if (!this.draggingEdge) return;
+        event.stopPropagation();
+        const edge = this.draggingEdge;
+        this.draggingEdge = null;
+        this.root.classList.remove('is-trimming');
+        try {
+          grip.releasePointerCapture(event.pointerId);
+        } catch {
+          // Capture may already be gone.
+        }
+        this.handlers.onTrimEnd?.(edge);
+      };
+
+      grip.addEventListener('pointerup', endDrag);
+      grip.addEventListener('pointercancel', endDrag);
+
+      // Arrow keys nudge a handle a frame-ish at a time, with Shift for a
+      // coarser step — the only way to place a mark precisely without a mouse.
+      grip.addEventListener('keydown', (event) => {
+        if (!this.trim) return;
+        const direction = event.key === 'ArrowLeft' ? -1 : event.key === 'ArrowRight' ? 1 : 0;
+        if (!direction) return;
+        event.preventDefault();
+        event.stopPropagation();
+        const edge = grip.dataset.edge;
+        const step = event.shiftKey ? 1 : 0.04;
+        this.handlers.onTrimDrag?.(edge, this.trim[edge] + direction * step);
+        this.handlers.onTrimEnd?.(edge);
+      });
+    }
+  }
+
   ratioFromEvent(event) {
     const rect = this.hitEl.getBoundingClientRect();
     if (rect.width <= 0) return 0;
@@ -156,6 +235,16 @@ export class Scrubber {
   setBufferedEnd(end) {
     this.bufferedEnd = Number.isFinite(end) ? end : 0;
     this.paint();
+  }
+
+  // `range` is { in, out } in display seconds, or null to leave trim mode.
+  setTrim(range) {
+    this.trim = range && Number.isFinite(range.in) && Number.isFinite(range.out)
+      ? { in: range.in, out: range.out }
+      : null;
+    this.root.classList.toggle('has-trim', Boolean(this.trim));
+    this.trimEl.hidden = !this.trim;
+    this.paintTrim();
   }
 
   /* ---------------- structure ---------------- */
@@ -239,6 +328,37 @@ export class Scrubber {
     this.root.setAttribute('aria-valuenow', String(Math.floor(this.currentTime)));
     this.root.setAttribute('aria-valuetext', formatTime(this.currentTime));
     this.paintHover();
+    // Cheap enough to redo here: it exits immediately when trim is off, and
+    // keeping it on the paint path means a duration change can never leave the
+    // handles sitting at stale positions.
+    this.paintTrim();
+  }
+
+  paintTrim() {
+    if (!this.trim || !this.duration) return;
+    const from = clamp(this.trim.in / this.duration, 0, 1) * 100;
+    const to = clamp(this.trim.out / this.duration, 0, 1) * 100;
+
+    // Everything outside the selection is dimmed, so the clip reads as the part
+    // of the timeline that survives rather than as a highlight laid on top.
+    this.trimBeforeEl.style.left = '0%';
+    this.trimBeforeEl.style.width = `${from}%`;
+    this.trimAfterEl.style.left = `${to}%`;
+    this.trimAfterEl.style.width = `${Math.max(0, 100 - to)}%`;
+
+    this.trimBandEl.style.left = `${from}%`;
+    this.trimBandEl.style.width = `${Math.max(0, to - from)}%`;
+
+    this.trimGrips[0].style.left = `${from}%`;
+    this.trimGrips[1].style.left = `${to}%`;
+
+    for (const [index, grip] of this.trimGrips.entries()) {
+      const time = index === 0 ? this.trim.in : this.trim.out;
+      grip.setAttribute('aria-valuemin', '0');
+      grip.setAttribute('aria-valuemax', String(Math.floor(this.duration)));
+      grip.setAttribute('aria-valuenow', String(Math.floor(time)));
+      grip.setAttribute('aria-valuetext', formatTime(time));
+    }
   }
 
   paintHover() {
