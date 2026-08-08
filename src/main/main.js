@@ -401,7 +401,29 @@ function registerIpc() {
     const queued = pendingOpenPath || firstVideoFromArgv(process.argv);
     pendingOpenPath = null;
     if (queued) await openPathInWindow(queued);
+    scheduleFirstUpdateCheck(Boolean(queued));
   });
+}
+
+// autoDownload pulls a ~120MB installer, which competes with the video for disk
+// and network — so launching straight into a file waits. Landing on the welcome
+// screen does not: nothing else is happening, and the user is looking directly
+// at the line that reports what the check found.
+let updateCheckScheduled = false;
+
+// A player stays open for days. Checking only at startup means a version
+// published while it is running is never noticed at all — the window has to be
+// closed and reopened at exactly the right moment for the update to be found,
+// which is how one can sit unseen indefinitely.
+const RECHECK_INTERVAL = 6 * 60 * 60 * 1000;
+
+function scheduleFirstUpdateCheck(openingFile) {
+  if (updateCheckScheduled) return;
+  updateCheckScheduled = true;
+  setTimeout(() => {
+    updater.check({ silent: true });
+    setInterval(() => updater.check({ silent: true }), RECHECK_INTERVAL);
+  }, openingFile ? 30_000 : 4_000);
 }
 
 function firstVideoFromArgv(argv) {
@@ -441,10 +463,8 @@ if (!app.requestSingleInstanceLock()) {
     updater.init((state) => {
       if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('updates:status', state);
     });
-    // Deliberately late. autoDownload pulls a ~100MB installer, and starting
-    // that while the user is still opening their first file competes with the
-    // video for disk and network.
-    setTimeout(() => updater.check({ silent: true }), 30_000);
+    // The first check is scheduled from 'renderer:ready' instead of here, so its
+    // timing can depend on whether a file is being opened.
 
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) createWindow();

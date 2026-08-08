@@ -29,6 +29,9 @@ const dom = {
   recent: el('recent'),
   recentList: el('recentList'),
   recentClear: el('recentClear'),
+  welcomeFoot: el('welcomeFoot'),
+  welcomeVersion: el('welcomeVersion'),
+  welcomeUpdate: el('welcomeUpdate'),
   chrome: el('chrome'),
   controlsHost: el('controls'),
   composerHost: el('composerHost'),
@@ -971,19 +974,85 @@ function renderUpdateBar(state) {
   dom.updateBar.hidden = false;
 }
 
+// Bookmarks and settings live in userData, which the installer never touches —
+// but anything still sitting in a debounce window has to reach disk first.
+function installUpdateNow() {
+  savePosition(true);
+  Promise.all([store.flush(), settings.flush()])
+    .catch(() => {})
+    .finally(() => globalThis.host?.installUpdate());
+}
+
 dom.updateBar.addEventListener('click', (event) => {
   const cmd = event.target.closest('[data-cmd]')?.dataset.cmd;
   if (cmd === 'install') {
-    // Bookmarks and settings live in userData, which the installer never
-    // touches — but flush anything still in a debounce window first.
-    savePosition(true);
-    Promise.all([store.flush(), settings.flush()])
-      .catch(() => {})
-      .finally(() => globalThis.host?.installUpdate());
+    installUpdateNow();
   } else if (cmd === 'dismiss') {
     dom.updateBar.hidden = true;
     updateDismissedFor = dom.updateBar.dataset.key || '';
   }
+});
+
+/* ---- the welcome screen's copy, which never hides ---- */
+
+// The corner notice only appears while downloading or once ready. Every other
+// state — checking, up to date, and above all *failed* — produced no visible
+// output at all, so "no update showed up" and "the check errored" looked
+// identical. Here they never do, and the running version is always on screen to
+// answer "did it actually update?".
+function renderWelcomeUpdate(state) {
+  dom.welcomeVersion.textContent = state.appVersion ? `Version ${state.appVersion}` : '';
+
+  const say = (text, action = null) => {
+    dom.welcomeUpdate.textContent = '';
+    if (text) {
+      const label = document.createElement('span');
+      label.className = 'welcome-update-text';
+      label.textContent = text;
+      dom.welcomeUpdate.appendChild(label);
+    }
+    if (action) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = action.primary ? 'welcome-update-go' : 'welcome-update-link';
+      button.dataset.cmd = action.cmd;
+      button.textContent = action.label;
+      dom.welcomeUpdate.appendChild(button);
+    }
+  };
+
+  switch (state.status) {
+    case 'checking':
+      say('Checking for updates…');
+      break;
+    case 'downloading':
+      say(`Downloading ${state.version || 'update'} — ${state.percent || 0}%`);
+      break;
+    case 'ready':
+      say(`Version ${state.version} is ready`, { cmd: 'install', label: 'Restart & update', primary: true });
+      break;
+    case 'none':
+      say('Up to date', { cmd: 'check', label: 'Check again' });
+      break;
+    case 'error':
+      say(state.message ? `Update check failed: ${state.message}` : 'Could not check for updates',
+        { cmd: 'check', label: 'Try again' });
+      break;
+    case 'disabled':
+      say('Running from source — updates are off');
+      break;
+    default:
+      say(null, { cmd: 'check', label: 'Check for updates' });
+      break;
+  }
+
+  dom.welcomeUpdate.dataset.status = state.status || 'idle';
+}
+
+dom.welcomeUpdate.addEventListener('click', (event) => {
+  const cmd = event.target.closest('[data-cmd]')?.dataset.cmd;
+  if (cmd === 'install') installUpdateNow();
+  else if (cmd === 'check') globalThis.host?.checkForUpdates();
 });
 
 /* ================================================================== *
@@ -1175,12 +1244,14 @@ async function boot() {
   globalThis.host?.onUpdateStatus((state) => {
     menu.setUpdateState(state);
     renderUpdateBar(state);
+    renderWelcomeUpdate(state);
     if (state.status === 'error' && menu.open) toast('Could not check for updates');
   });
   globalThis.host?.getUpdateState()
     .then((state) => {
       menu.setUpdateState(state);
       renderUpdateBar(state);
+      renderWelcomeUpdate(state);
     })
     .catch(() => {});
 

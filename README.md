@@ -26,11 +26,18 @@ certificate; nothing in the app depends on it.
 
 ### Updates
 
-The app checks GitHub Releases a few seconds after launch, downloads a new version in the
-background, and installs it when you next quit. Nothing to run.
+The welcome screen always shows the running version and the state of the last update check:
+*Checking…*, *Up to date*, *Downloading — 42%*, *Version X is ready* with a **Restart & update**
+button, or the reason a check failed with **Try again**. It is the one place that answers
+"which version am I actually on, and is something waiting?" without opening a menu.
 
-Settings (⚙) → **Check for updates** forces a check and shows the current state. Once a version
-has downloaded, the row becomes **Restart to update**.
+The check runs a few seconds after launch — or thirty seconds in, if the app was launched
+straight into a video, so the ~120MB download does not compete with playback — and then every
+six hours. The periodic re-check matters: a player left open for days would otherwise never
+notice a version published while it was running.
+
+New versions download in the background and install when you next quit. Settings (⚙) →
+**Check for updates** forces a check too.
 
 Publishing a new version:
 

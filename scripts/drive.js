@@ -391,6 +391,55 @@ app.whenReady().then(async () => {
     `${recentBefore.rows} row(s)`);
   await shot(win, '11-recent-list');
 
+  /* ---- 13b. version and update state, always on the welcome screen ---- */
+  const foot = await evaluate(
+    win,
+    `(() => { const f = document.querySelector('.welcome-foot');
+       const v = document.querySelector('[data-role="welcomeVersion"]');
+       return { visible: Boolean(f) && f.getBoundingClientRect().height > 0,
+                version: v ? v.textContent.trim() : '' }; })()`,
+  );
+  // Run from source, app.getVersion() reports Electron's own version because
+  // there is no package.json beside the entry script. A packaged build reads the
+  // app's — which is also what the updater compares against, so the 0.1.1 -> 0.1.2
+  // update having worked is proof it resolves correctly there.
+  check('the welcome screen always shows the running version',
+    foot.visible && /^Version \d/.test(foot.version), `"${foot.version}" visible=${foot.visible}`);
+
+  // The regression that let an update sit unnoticed for a week: a failed check
+  // produced no visible output anywhere, so it looked exactly like no update.
+  win.webContents.send('updates:status',
+    { status: 'error', message: 'net::ERR_INTERNET_DISCONNECTED', appVersion: '0.2.0' });
+  await wait(400);
+  const failedCheck = await evaluate(
+    win,
+    `(() => { const u = document.querySelector('[data-role="welcomeUpdate"]');
+       return { text: u.textContent.trim(), retry: Boolean(u.querySelector('[data-cmd="check"]')) }; })()`,
+  );
+  check('a failed update check is stated, not swallowed',
+    /failed|could not/i.test(failedCheck.text) && failedCheck.retry, failedCheck.text);
+
+  win.webContents.send('updates:status', { status: 'ready', version: '0.3.0', appVersion: '0.2.0' });
+  await wait(400);
+  const readyOnWelcome = await evaluate(
+    win,
+    `(() => { const u = document.querySelector('[data-role="welcomeUpdate"]');
+       return { text: u.textContent.trim(), install: Boolean(u.querySelector('[data-cmd="install"]')) }; })()`,
+  );
+  check('a waiting update offers its restart button on the welcome screen',
+    /0\.3\.0/.test(readyOnWelcome.text) && readyOnWelcome.install, readyOnWelcome.text);
+  await shot(win, '11b-welcome-update');
+
+  win.webContents.send('updates:status', { status: 'none', version: '0.2.0', appVersion: '0.2.0' });
+  await wait(400);
+  const upToDate = await evaluate(
+    win,
+    `(() => { const u = document.querySelector('[data-role="welcomeUpdate"]');
+       return u.textContent.trim(); })()`,
+  );
+  check('being up to date says so rather than showing nothing',
+    /up to date/i.test(upToDate), upToDate);
+
   const forgetBtn = await rectOf(win, '.recent-row [data-cmd="forget"]');
   if (forgetBtn) click(win, forgetBtn.x, forgetBtn.y);
   await wait(900);
