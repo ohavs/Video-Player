@@ -22,7 +22,11 @@ export class Player {
     this.origin = 0;
     this.span = 0;
 
-    this.el.preload = 'auto';
+    // 'metadata', not 'auto'. Duration and dimensions still arrive immediately,
+    // but Chromium no longer tries to pull the whole file up front — on a
+    // multi-gigabyte recording that read is what makes opening feel frozen.
+    // Playback buffers on demand through range requests.
+    this.el.preload = 'metadata';
     this.el.playsInline = true;
 
     // Registered here, in the constructor, so these run before the app's own

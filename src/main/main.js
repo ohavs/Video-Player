@@ -64,9 +64,17 @@ async function handleMediaRequest(request) {
   const type = MIME_BY_EXT[path.extname(filePath).toLowerCase()] || 'application/octet-stream';
   const range = request.headers.get('Range');
 
+  // A cancelled media request must take its file handle with it. Without this,
+  // seeking around a large file leaves orphaned reads pulling gigabytes off
+  // disk in the background.
+  const streamFor = (options) => {
+    const stream = fs.createReadStream(filePath, options);
+    request.signal?.addEventListener('abort', () => stream.destroy(), { once: true });
+    return Readable.toWeb(stream);
+  };
+
   if (!range) {
-    const stream = fs.createReadStream(filePath);
-    return new Response(Readable.toWeb(stream), {
+    return new Response(streamFor(undefined), {
       status: 200,
       headers: {
         'Content-Type': type,
@@ -104,8 +112,7 @@ async function handleMediaRequest(request) {
   }
   end = Math.min(end, size - 1);
 
-  const stream = fs.createReadStream(filePath, { start, end });
-  return new Response(Readable.toWeb(stream), {
+  return new Response(streamFor({ start, end }), {
     status: 206,
     headers: {
       'Content-Type': type,
@@ -350,9 +357,10 @@ if (!app.requestSingleInstanceLock()) {
     updater.init((state) => {
       if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('updates:status', state);
     });
-    // Quiet check shortly after launch; the UI only speaks up if there is
-    // something to say.
-    setTimeout(() => updater.check({ silent: true }), 4000);
+    // Deliberately late. autoDownload pulls a ~100MB installer, and starting
+    // that while the user is still opening their first file competes with the
+    // video for disk and network.
+    setTimeout(() => updater.check({ silent: true }), 30_000);
 
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) createWindow();

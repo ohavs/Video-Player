@@ -433,17 +433,21 @@ player.on('durationchange', () => {
 
 player.on('play', () => {
   controls.setPlaying(true);
+  startFrameLoop();
   wake();
 });
 
 player.on('pause', () => {
   controls.setPlaying(false);
+  stopFrameLoop();
+  paintTime(true);
   wake();
   savePosition(true);
 });
 
 player.on('ended', () => {
   controls.setPlaying(false);
+  stopFrameLoop();
   controls.setEnded(true);
   wake();
 });
@@ -507,11 +511,31 @@ function savePosition(immediate) {
   store.setMeta({ position: player.currentTime, duration: player.duration });
 }
 
+// The frame loop runs only while something is actually playing. It used to run
+// unconditionally, which — with backgroundThrottling disabled so playback stays
+// smooth when unfocused — meant the app woke the CPU 60 times a second forever,
+// including while sitting idle on the welcome screen.
+let frameHandle = null;
+
 function tick() {
-  if (!player.paused) paintTime();
-  requestAnimationFrame(tick);
+  if (player.paused) {
+    frameHandle = null;
+    return;
+  }
+  paintTime();
+  frameHandle = requestAnimationFrame(tick);
 }
-requestAnimationFrame(tick);
+
+function startFrameLoop() {
+  if (frameHandle === null) frameHandle = requestAnimationFrame(tick);
+}
+
+function stopFrameLoop() {
+  if (frameHandle !== null) {
+    cancelAnimationFrame(frameHandle);
+    frameHandle = null;
+  }
+}
 
 /* ================================================================== *
  * Stage interaction
