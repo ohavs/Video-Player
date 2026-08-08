@@ -4,13 +4,17 @@ name: Release
 # updater reads that same release feed, so this workflow is the whole shipping
 # process.
 #
-# To release: bump "version" in package.json, push, then run this workflow.
-# The tag is created here — there is nothing to tag by hand.
+# To release: bump "version" in package.json and push. That is the entire
+# procedure — no tag to create, no button to press.
+#
+# Every push to the trunk starts this workflow, but it stops within seconds
+# unless the version in package.json has no release yet. That keeps releasing
+# tied to the version number rather than to remembering to do something.
 
 on:
   push:
-    tags:
-      - 'v*'
+    branches:
+      - claude/youtube-like-video-player-ps611l
   workflow_dispatch:
 
 permissions:
@@ -33,7 +37,25 @@ jobs:
         run: |
           $version = node -p "require('./package.json').version"
           "value=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
-          Write-Host "Releasing v$version"
+          Write-Host "package.json is at $version"
+
+      # The gate. A version that already has a tag has already shipped, so there
+      # is nothing to build — without this, every unrelated push would try to
+      # republish the current release and overwrite its installer.
+      # A manual run ignores the gate so a failed build can be retried.
+      - name: Decide whether to release
+        id: gate
+        shell: pwsh
+        run: |
+          $tag = "v${{ steps.version.outputs.value }}"
+          $existing = git ls-remote --tags origin "refs/tags/$tag"
+          if ($existing -and "${{ github.event_name }}" -ne "workflow_dispatch") {
+            "release=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+            Write-Host "$tag is already released — nothing to do. Bump the version in package.json to ship again."
+          } else {
+            "release=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+            Write-Host "Releasing $tag"
+          }
 
       # GitHub rejects a published (non-draft) release whose tag does not exist:
       # "Published releases must have a valid tag". electron-builder does not
@@ -41,6 +63,7 @@ jobs:
       # A tag pushed with GITHUB_TOKEN does not re-trigger this workflow, so
       # this cannot loop.
       - name: Ensure tag exists
+        if: steps.gate.outputs.release == 'true'
         shell: pwsh
         run: |
           $tag = "v${{ steps.version.outputs.value }}"
@@ -55,9 +78,28 @@ jobs:
             Write-Host "Created $tag"
           }
 
-      - run: npm ci
+      - name: Install dependencies
+        if: steps.gate.outputs.release == 'true'
+        run: npm ci
+
+      # The bundled ffmpeg arrives through ffmpeg-static's install script rather
+      # than the lockfile, so a silent download failure would otherwise only
+      # surface as an app that cannot trim.
+      - name: Verify the bundled video engine
+        if: steps.gate.outputs.release == 'true'
+        shell: pwsh
+        run: |
+          $ffmpeg = node -p "require('ffmpeg-static') || ''"
+          if (-not $ffmpeg -or -not (Test-Path $ffmpeg)) {
+            Write-Error "ffmpeg-static did not produce a binary — the installer would ship without trim support."
+            exit 1
+          }
+          $size = [math]::Round((Get-Item $ffmpeg).Length / 1MB, 1)
+          Write-Host "ffmpeg present at $ffmpeg ($size MB)"
+          & $ffmpeg -hide_banner -version | Select-Object -First 1
 
       - name: Build and publish installer
+        if: steps.gate.outputs.release == 'true'
         run: npm run dist -- --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
