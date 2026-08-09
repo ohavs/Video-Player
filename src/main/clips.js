@@ -85,14 +85,21 @@ function convertArgs({ input, output }) {
  * The job slot
  * ------------------------------------------------------------------ */
 
-async function execute({ kind, args, output, totalSeconds, onProgress }) {
+async function execute({ kind, args, output, totalSeconds, requestedSeconds, onProgress }) {
   const report = typeof onProgress === 'function' ? onProgress : () => {};
+
+  // The final progress tick is the length of what was actually written. Keeping
+  // it means a finished copy can report how much it really produced, which is
+  // the only way to tell the user what a keyframe cut cost them on their file
+  // rather than in the abstract.
+  let writtenSeconds = 0;
 
   // totalSeconds travels with every update so the UI can tell "0% so far" from
   // "there is no total to be a percentage of" — the latter happens converting a
   // file the player could not open, where no duration was ever read.
   const { promise, cancel } = ffmpeg.run(args, {
     onSeconds: (seconds) => {
+      writtenSeconds = seconds;
       const percent = totalSeconds > 0
         ? Math.max(0, Math.min(99, Math.round((seconds / totalSeconds) * 100)))
         : 0;
@@ -126,7 +133,25 @@ async function execute({ kind, args, output, totalSeconds, onProgress }) {
       throw new Error('The video engine produced an empty file.');
     }
 
-    const result = { status: 'done', kind, output, size, percent: 100 };
+    // Reading the finished header is the only way to learn what a stream copy
+    // really produced; the progress stream reports the length that was asked
+    // for. Falls back to that if the probe cannot answer.
+    let measured = null;
+    try {
+      measured = await ffmpeg.probeDuration(output);
+    } catch {
+      measured = null;
+    }
+
+    const result = {
+      status: 'done',
+      kind,
+      output,
+      size,
+      percent: 100,
+      writtenSeconds: Number.isFinite(measured) && measured > 0 ? measured : writtenSeconds,
+      requestedSeconds: requestedSeconds || 0,
+    };
     report(result);
     return result;
   } catch (err) {
@@ -163,6 +188,7 @@ async function trim({ input, output, start, end, mode }, onProgress) {
     args: trimArgs({ input, output, start: from, duration, mode: mode === 'exact' ? 'exact' : 'fast' }),
     output,
     totalSeconds: duration,
+    requestedSeconds: duration,
     onProgress,
   });
 }

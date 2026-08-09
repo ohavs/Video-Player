@@ -33,6 +33,9 @@ const dom = {
   welcomeVersion: el('welcomeVersion'),
   welcomeUpdate: el('welcomeUpdate'),
   chrome: el('chrome'),
+  navPrev: el('navPrev'),
+  navNext: el('navNext'),
+  navCount: el('navCount'),
   controlsHost: el('controls'),
   composerHost: el('composerHost'),
   trimHost: el('trimHost'),
@@ -53,6 +56,7 @@ let idleTimer = null;
 let suppressAutoHide = false;
 let pendingResume = 0;   // resume point held until metadata gives us a duration
 
+let siblings = { index: -1, total: 0, previous: null, next: null };
 let clipsReady = false;  // is the bundled video engine actually present
 let trimRange = null;    // { in, out } in display seconds while trimming
 let activeJob = null;    // the export or conversion currently running
@@ -186,6 +190,13 @@ function runAction(action) {
       break;
     case 'goEnd':
       player.seek(player.duration);
+      break;
+
+    case 'previousVideo':
+      stepVideo(-1);
+      break;
+    case 'nextVideo':
+      stepVideo(1);
       break;
 
     case 'frameBack':
@@ -629,7 +640,61 @@ async function openFile(file) {
 
   bookmarkPanel.setItems(store.list);
   controls.setBookmarkCount(store.count);
+  refreshSiblings();
   wake();
+}
+
+/* ================================================================== *
+ * Stepping through a folder
+ * ================================================================== */
+
+// Asked after every open rather than cached: a folder gains and loses files
+// while the app is running, and navigating from a stale list would land on
+// something that is no longer there.
+async function refreshSiblings() {
+  siblings = { index: -1, total: 0, previous: null, next: null };
+  if (currentFile?.path) {
+    try {
+      siblings = (await globalThis.host?.siblingsOf(currentFile.path)) || siblings;
+    } catch {
+      // A folder that cannot be read simply has no neighbours.
+    }
+  }
+  renderSiblings();
+}
+
+function renderSiblings() {
+  const { previous, next, index, total } = siblings;
+
+  // Hidden, not disabled. An arrow that never does anything is worse than no
+  // arrow, and a video sitting alone in a folder should look like one.
+  dom.navPrev.hidden = !previous;
+  dom.navNext.hidden = !next;
+  if (previous) dom.navPrev.title = `Previous — ${previous.name}`;
+  if (next) dom.navNext.title = `Next — ${next.name}`;
+
+  const inASet = total > 1 && index >= 0;
+  dom.navCount.hidden = !inASet;
+  // Cleared rather than left stale: hidden markup that still reads "3 / 12"
+  // is a lie waiting for the next bug to reveal it.
+  dom.navCount.textContent = inASet ? `${index + 1} / ${total}` : '';
+}
+
+function stepVideo(direction) {
+  const target = direction > 0 ? siblings.next : siblings.previous;
+  if (!target) {
+    toast(direction > 0 ? 'Last video in this folder' : 'First video in this folder');
+    return;
+  }
+  openPath(target.path);
+}
+
+// These sit on the video surface, where a click already means play/pause and a
+// double-click means fullscreen. Both have to stop here.
+for (const [button, direction] of [[dom.navPrev, -1], [dom.navNext, 1]]) {
+  button.addEventListener('click', () => stepVideo(direction));
+  button.addEventListener('pointerdown', (event) => event.stopPropagation());
+  button.addEventListener('dblclick', (event) => event.stopPropagation());
 }
 
 async function openPath(filePath) {
@@ -1216,6 +1281,11 @@ async function boot() {
   }
   controls.setTrimAvailable(clipsReady);
   trimBar.setMode(settings.get('trimMode'));
+
+  dom.navPrev.innerHTML = icon('chevronLeft');
+  dom.navNext.innerHTML = icon('chevronRight');
+  dom.navPrev.setAttribute('aria-label', 'Previous video in this folder');
+  dom.navNext.setAttribute('aria-label', 'Next video in this folder');
 
   dom.welcomeKey.textContent = bindingLabel(settings.get('keymap').addBookmark?.[0]);
   document.documentElement.lang = settings.get('language');

@@ -50,7 +50,14 @@
         <div class="chrome" data-role="chrome">
           <header class="topbar" data-role="topbar">
             <span class="topbar-title" data-role="title"></span>
+            <span class="topbar-count" data-role="navCount" hidden></span>
           </header>
+
+          <!-- Folder navigation. Rendered only when this file actually has a
+               neighbour in that direction, and it fades with the rest of the
+               chrome, so an only-child video never grows arrows. -->
+          <button class="stage-nav stage-nav-prev" data-role="navPrev" type="button" hidden></button>
+          <button class="stage-nav stage-nav-next" data-role="navNext" type="button" hidden></button>
 
           <div class="chrome-bottom">
             <div class="composer-host" data-role="composerHost"></div>

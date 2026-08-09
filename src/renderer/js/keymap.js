@@ -44,6 +44,8 @@ export const ACTIONS = [
   { id: 'seekForwardLong', label: 'Forward (long)', group: 'navigation', defaults: ['KeyL'] },
   { id: 'goStart', label: 'Go to start', group: 'navigation', defaults: ['Home'] },
   { id: 'goEnd', label: 'Go to end', group: 'navigation', defaults: ['End'] },
+  { id: 'previousVideo', label: 'Previous video in folder', group: 'navigation', defaults: ['PageUp'] },
+  { id: 'nextVideo', label: 'Next video in folder', group: 'navigation', defaults: ['PageDown'] },
 
   { id: 'volumeUp', label: 'Volume up', group: 'audio', defaults: ['ArrowUp'] },
   { id: 'volumeDown', label: 'Volume down', group: 'audio', defaults: ['ArrowDown'] },

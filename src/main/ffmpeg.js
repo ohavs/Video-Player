@@ -144,4 +144,46 @@ function run(args, { onSeconds } = {}) {
   return { promise, cancel };
 }
 
-module.exports = { isAvailable, resolveBinary, run };
+/* ------------------------------------------------------------------ *
+ * Measuring
+ * ------------------------------------------------------------------ */
+
+// How long a finished file actually is.
+//
+// The progress stream cannot answer this for a stream copy: `-ss 10 -t 15`
+// makes ffmpeg count 15 seconds from the seek point and report that, while the
+// file it writes begins at the keyframe before 10 and so runs longer. Only the
+// header of the result knows.
+//
+// ffmpeg with no output exits non-zero by design ("At least one output file
+// must be specified"), so the exit code is ignored — the header line is the
+// whole point of the call.
+function probeDuration(filePath) {
+  const binary = resolveBinary();
+  if (!binary) return Promise.resolve(null);
+
+  return new Promise((resolve) => {
+    let child;
+    try {
+      child = spawn(binary, ['-hide_banner', '-nostdin', '-i', filePath], { windowsHide: true });
+    } catch {
+      resolve(null);
+      return;
+    }
+
+    let stderr = '';
+    child.stderr.setEncoding('utf8');
+    child.stderr.on('data', (chunk) => {
+      stderr += chunk;
+      if (stderr.length > 65536) child.kill();
+    });
+
+    child.on('error', () => resolve(null));
+    child.on('close', () => {
+      const match = /Duration:\s*(\d+):(\d\d):(\d\d(?:\.\d+)?)/.exec(stderr);
+      resolve(match ? Number(match[1]) * 3600 + Number(match[2]) * 60 + Number(match[3]) : null);
+    });
+  });
+}
+
+module.exports = { isAvailable, resolveBinary, run, probeDuration };

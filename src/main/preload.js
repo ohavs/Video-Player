@@ -18,6 +18,8 @@ contextBridge.exposeInMainWorld('host', {
   // Files
   openFileDialog: () => ipcRenderer.invoke('dialog:openFile'),
   describeFile: (filePath) => ipcRenderer.invoke('file:describe', filePath),
+  // The other videos sitting beside this one, for stepping through a folder.
+  siblingsOf: (filePath) => ipcRenderer.invoke('file:siblings', filePath),
 
   // Dropped File objects no longer carry `.path`; this is the supported way to
   // recover the real location of a file the user dragged in.

@@ -229,6 +229,7 @@ app.whenReady().then(async () => {
   // A 15-second stream copy finishes in a few hundred milliseconds, which is
   // faster than this process can poll over IPC. Sampling from inside the page
   // catches the running state instead of racing it.
+  await evaluate(win, `document.querySelectorAll('.toast').forEach(n => n.remove()); true`);
   await watchBusy(win);
   await evaluate(win, `document.querySelector('[data-cmd="export"]').click()`);
   await wait(400);
@@ -252,10 +253,17 @@ app.whenReady().then(async () => {
 
   const doneToast = await evaluate(
     win,
-    `(() => { const t = document.querySelector('.toast'); return t ? t.textContent.trim() : ''; })()`,
+    `(() => { const all = document.querySelectorAll('.toast');
+       const t = all[all.length - 1]; return t ? t.textContent.trim() : ''; })()`,
   );
   check('finishing is reported with a way to find the file',
     /Clip saved/.test(doneToast) && /Show file/.test(doneToast), doneToast);
+
+  // The whole point of naming the two modes: on this file a fast cut really
+  // starts ~2s earlier, and saying the number is what makes the choice concrete
+  // rather than a claim the user has to take on faith.
+  check('a fast cut reports how much earlier it actually starts',
+    /starts \d+\.\d+s early/.test(doneToast), doneToast);
 
   const stacking = await evaluate(
     win,
@@ -278,6 +286,7 @@ app.whenReady().then(async () => {
   const exactOut = path.join(OUT_DIR, 'exported-exact.mp4');
   fs.rmSync(exactOut, { force: true });
   nextSavePath = exactOut;
+  await evaluate(win, `document.querySelectorAll('.toast').forEach(n => n.remove()); true`);
   await evaluate(win, `document.querySelector('[data-cmd="export"]').click()`);
   for (let i = 0; i < 90 && !fs.existsSync(exactOut); i += 1) await wait(500);
   await wait(1500);
@@ -285,6 +294,14 @@ app.whenReady().then(async () => {
   const exactSeconds = secondsOf(exactOut);
   check('the exact clip is cut to the frame',
     exactSeconds !== null && Math.abs(exactSeconds - 15) < 0.2, `${exactSeconds}s`);
+
+  const exactToast = await evaluate(
+    win,
+    `(() => { const all = document.querySelectorAll('.toast');
+       const t = all[all.length - 1]; return t ? t.textContent.trim() : ''; })()`,
+  );
+  check('an exact cut has no early start to report',
+    /Clip saved/.test(exactToast) && !/early/.test(exactToast), exactToast);
 
   /* ---- 6. cancelling the dialog cancels the export ---- */
   nextSavePath = null;

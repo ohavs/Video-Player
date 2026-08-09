@@ -28,12 +28,17 @@
   top: 0;
   left: 0;
   right: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
   padding: 14px 18px 40px;
   background: linear-gradient(to bottom, rgba(0, 0, 0, 0.7), transparent);
   pointer-events: none;
 }
 
 .topbar-title {
+  flex: 1;
+  min-width: 0;
   font-size: 14px;
   font-weight: 500;
   color: #fff;
@@ -42,6 +47,60 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   display: block;
+}
+
+/* "3 / 12" — the answer to "am I in a folder, and where in it?" */
+.topbar-count {
+  flex: none;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: rgba(255, 255, 255, 0.7);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+}
+
+/* ------------------------------------------------------------------ *
+ * Folder arrows
+ * ------------------------------------------------------------------ */
+
+/* Physical left/right rather than logical inline properties, deliberately: in
+   every player, previous is the left arrow and next is the right one, and an
+   RTL interface does not change which way a folder is walked. */
+.stage-nav {
+  position: absolute;
+  top: 50%;
+  /* Offset by margin, not transform — :active wants the transform. */
+  margin-top: -23px;
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.5);
+  color: #fff;
+  opacity: 0.85;
+  transition: background 0.12s var(--ease), opacity 0.12s var(--ease), transform 0.1s var(--ease);
+}
+
+.stage-nav:hover {
+  background: rgba(0, 0, 0, 0.74);
+  opacity: 1;
+}
+
+.stage-nav:active {
+  transform: scale(0.93);
+}
+
+.stage-nav .icon {
+  width: 26px;
+  height: 26px;
+}
+
+.stage-nav-prev {
+  left: 16px;
+}
+
+.stage-nav-next {
+  right: 16px;
 }
 
 .chrome-bottom {
@@ -776,6 +835,25 @@
 
   .composer {
     width: min(300px, calc(100vw - 32px));
+  }
+
+  .stage-nav {
+    width: 38px;
+    height: 38px;
+    margin-top: -19px;
+  }
+
+  .stage-nav .icon {
+    width: 22px;
+    height: 22px;
+  }
+
+  .stage-nav-prev {
+    left: 8px;
+  }
+
+  .stage-nav-next {
+    right: 8px;
   }
 
   /* The tail stops being a right-hand cluster and becomes its own line, so the

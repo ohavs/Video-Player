@@ -160,6 +160,43 @@ function looksLikeVideo(candidate) {
   return VIDEO_EXTENSIONS.includes(ext);
 }
 
+// Numeric collation, so "clip9" comes before "clip10" — the order the file
+// manager shows and therefore the order the user is expecting to walk in.
+const byName = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' }).compare;
+
+// What else is in this file's folder. Returned rather than pushed: the renderer
+// asks after each open, so a folder whose contents changed since last time is
+// never navigated from a stale list.
+async function siblingsOf(filePath) {
+  const empty = { index: -1, total: 0, previous: null, next: null };
+  if (!filePath) return empty;
+
+  const resolved = path.resolve(filePath);
+  const directory = path.dirname(resolved);
+
+  let entries;
+  try {
+    entries = await fs.promises.readdir(directory, { withFileTypes: true });
+  } catch {
+    return empty;
+  }
+
+  const videos = entries
+    .filter((entry) => entry.isFile() && looksLikeVideo(entry.name))
+    .map((entry) => entry.name)
+    .sort(byName);
+
+  const index = videos.indexOf(path.basename(resolved));
+  if (index === -1) return { ...empty, total: videos.length };
+
+  const at = (position) =>
+    (position >= 0 && position < videos.length
+      ? { path: path.join(directory, videos[position]), name: videos[position] }
+      : null);
+
+  return { index, total: videos.length, previous: at(index - 1), next: at(index + 1) };
+}
+
 async function openPathInWindow(filePath) {
   if (!filePath || !looksLikeVideo(filePath)) return;
   try {
@@ -359,6 +396,7 @@ function buildMenu() {
 function registerIpc() {
   ipcMain.handle('dialog:openFile', () => showOpenDialog());
   ipcMain.handle('file:describe', (_e, filePath) => describeFile(filePath));
+  ipcMain.handle('file:siblings', (_e, filePath) => siblingsOf(filePath));
 
   ipcMain.handle('settings:get', () => store.getSettings());
   ipcMain.handle('settings:set', (_e, value) => {

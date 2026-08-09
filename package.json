@@ -1,6 +1,6 @@
 {
   "name": "video-player",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "A desktop video player with instant timestamped bookmarks and clip export.",
   "main": "src/main/main.js",
   "author": "ohavs",

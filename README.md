@@ -107,6 +107,7 @@ Defaults follow the conventions most players share:
 | <kbd>[</kbd> <kbd>]</kbd> | previous / next bookmark |
 | <kbd>C</kbd> | trim & export |
 | <kbd>Shift</kbd>+<kbd>I</kbd> / <kbd>O</kbd> | set clip start / end |
+| <kbd>Page Up</kbd> / <kbd>Page Down</kbd> | previous / next video in the folder |
 
 Editors conventionally put in and out on bare <kbd>I</kbd> and <kbd>O</kbd>, but <kbd>I</kbd>
 already toggles picture-in-picture here and quietly reassigning it would break keymaps people
@@ -122,11 +123,28 @@ had already saved. Both are rebindable if you want them bare.
   (<kbd>Shift</kbd>+<kbd>I</kbd> / <kbd>Shift</kbd>+<kbd>O</kbd>). Arrow keys nudge a focused
   handle; hold <kbd>Shift</kbd> for a coarser step.
 - Two modes:
-  - **Fast** copies the streams without re-encoding — seconds to finish, no quality lost. The
-    cut lands on the nearest keyframe, so a clip can begin up to a couple of seconds *early*.
-    Never late: the moment you marked is always inside the result.
+  - **Fast** copies the streams without re-encoding — seconds to finish, output identical to the
+    source. The cut lands on the nearest keyframe, so a clip can begin *early*. Never late: the
+    moment you marked is always inside the result.
   - **Exact** re-encodes to cut on the precise frame. Slower, slightly lossy.
+- **The two usually look the same, and the app says so with a number.** How early a fast cut
+  starts depends entirely on how far apart that file's keyframes are — often a fraction of a
+  second, sometimes several. So the result is measured off the finished file and reported:
+  *Clip saved · 539 KB · starts 2.0s early (nearest keyframe)*. An exact cut has nothing to
+  report and says nothing. Pick Fast unless that number matters to you.
 - A clip taken from a titled chapter is offered that title as its filename.
+
+**Stepping through a folder** — open one video and the others beside it are one click away.
+
+- Arrows appear at the left and right edges, and fade with the rest of the chrome when the
+  pointer rests. <kbd>Page Up</kbd> / <kbd>Page Down</kbd> do the same.
+- Only rendered when there is actually a file in that direction: the last video has no next
+  arrow, and a video alone in its folder grows no arrows at all.
+- The top bar shows the position in the set (*3 / 12*).
+- Ordering is numeric — `clip9` comes before `clip10`, the order the file manager shows, not the
+  order plain string sorting would give.
+- The folder is re-read on every open, so files added or removed while the app is running are
+  picked up rather than navigated from a stale list.
 
 **Opening files** — file dialog, drag and drop anywhere in the window, "Open with" from the OS,
 or the recent list on the welcome screen (which shows how many bookmarks each file has).
@@ -175,7 +193,7 @@ src/
     main.js       Electron entry: window, menu, file handling, media:// protocol
     preload.js    the entire renderer↔Node bridge (no raw ipc reaches the page)
     store.js      atomic JSON persistence in userData
-    ffmpeg.js     finds and runs the bundled binary; parses its progress stream
+    ffmpeg.js     finds and runs the bundled binary; progress stream, duration probe
     clips.js      the export jobs (trim, convert) — one slot, cancellable
   renderer/
     index.html
@@ -197,6 +215,7 @@ scripts/
   drive.js        launches the real app under Xvfb, drives it with synthetic
                   input, asserts behaviour and captures screenshots
   drive-trim.js   the same, for trim mode and a real export to disk
+  drive-folder.js the same, for stepping between videos in one folder
 ```
 
 Clicks and keypresses both resolve to the same action ids, dispatched in one `switch` in
@@ -212,18 +231,26 @@ timeline segments, hover tooltips carry chapter titles, submenus navigate, a reb
 working while the old one stops, a lying duration header falls back to `seekable`, and bookmarks
 reach disk and come back after a restart.
 
-`scripts/drive-trim.js` covers **24 more**, ending in files on disk whose durations are measured
-back with ffmpeg: a fast cut keeps the whole marked range, an exact cut is frame accurate, the
-handles refuse to cross, a chapter preselects the cut and names the file, progress and
-completion are reported, and backing out of the save dialog changes nothing. The only stub is
-the native save dialog, which synthetic input cannot answer.
+`scripts/drive-trim.js` covers **32 more**, ending in files on disk whose durations are measured
+back with ffmpeg: a fast cut keeps the whole marked range and reports how much earlier it really
+starts, an exact cut is frame accurate and reports nothing, the handles refuse to cross, a
+chapter preselects the cut and names the file, an H.265 MKV converts and then plays, and backing
+out of the save dialog changes nothing. The only stub is the native save dialog, which synthetic
+input cannot answer.
+
+`scripts/drive-folder.js` covers **16 more** for folder navigation: both arrows appear only when
+there is somewhere to go, `clip10` sorts after `clip9`, the position tracks, walking off either
+end explains itself, a lone video grows no arrows, and the arrows fade with the chrome.
 
 ```bash
 VP_VIDEO=/path/to/clip.mp4 VP_SHOT_DIR=/tmp/shots \
   xvfb-run -a ./node_modules/.bin/electron --no-sandbox --disable-gpu scripts/drive.js
 
-VP_VIDEO=/path/to/clip.mp4 VP_SHOT_DIR=/tmp/shots \
+VP_VIDEO=/path/to/clip.mp4 VP_VIDEO_UNPLAYABLE=/path/to/x265.mkv VP_SHOT_DIR=/tmp/shots \
   xvfb-run -a ./node_modules/.bin/electron --no-sandbox --disable-gpu scripts/drive-trim.js
+
+VP_FOLDER=/dir/with/several VP_ALONE=/dir/with/one VP_SHOT_DIR=/tmp/shots \
+  xvfb-run -a ./node_modules/.bin/electron --no-sandbox --disable-gpu scripts/drive-folder.js
 ```
 
 Both write into the default user data directory. Pass `--user-data-dir=<tmp>` to run against a

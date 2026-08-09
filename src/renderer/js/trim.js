@@ -19,13 +19,17 @@ function stamp(seconds) {
   return `${formatTime(Math.floor(tenths / 10))}.${tenths % 10}`;
 }
 
+// Written to answer "which do I pick?" rather than to describe how each works.
+// On most footage the two produce near-identical clips, so the note has to say
+// when the difference is worth paying for instead of only that it exists.
 const MODE_NOTES = {
   fast:
-    'Cuts without re-encoding: seconds to finish, no quality lost. The cut lands on the nearest keyframe, '
-    + 'so the clip can begin up to a couple of seconds early — never late, so the moment you marked is always in it.',
+    'Copies the video untouched — finishes in seconds, pixel-for-pixel identical to the original. '
+    + 'The start snaps back to the nearest keyframe, so the clip may begin a moment early, never late. '
+    + 'Use this unless the first frame has to be exact.',
   exact:
-    'Cuts to the exact frame by re-encoding. Slower, and a little quality is lost, '
-    + 'but the clip starts precisely where you put the mark.',
+    'Re-encodes so the clip starts on precisely the frame you marked. Takes roughly as long as the clip '
+    + 'itself and loses a little quality. Worth it only when that leading moment matters.',
 };
 
 export class TrimBar {
@@ -195,7 +199,21 @@ export class TrimBar {
 // finished export lives next to the wording that describes a running one.
 export function describeResult(result) {
   if (!result || result.status !== 'done') return '';
+
   const size = formatFileSize(result.size);
-  const noun = result.kind === 'convert' ? 'Converted copy saved' : 'Clip saved';
-  return size ? `${noun} · ${size}` : noun;
+  if (result.kind === 'convert') {
+    return size ? `Converted copy saved · ${size}` : 'Converted copy saved';
+  }
+
+  const parts = ['Clip saved'];
+  if (size) parts.push(size);
+
+  // A fast cut that snapped back to an earlier keyframe wrote more than was
+  // asked for. Reporting by how much is what turns "Fast and Exact seem the
+  // same" into a number measured on the user's own file — and on footage with
+  // dense keyframes the honest answer is that they very nearly are.
+  const extra = (result.writtenSeconds || 0) - (result.requestedSeconds || 0);
+  if (extra > 0.15) parts.push(`starts ${extra.toFixed(1)}s early (nearest keyframe)`);
+
+  return parts.join(' · ');
 }
