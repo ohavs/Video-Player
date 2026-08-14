@@ -117,6 +117,10 @@ once, and a tray that closed on the first click would have to be reopened for ev
   with a gap at each mark, and hovering shows that chapter's title — or **Markers**, a
   continuous bar with a tick per mark.
 - The current chapter's name shows in the control bar. `[` and `]` jump between marks.
+- Renaming happens **in the list row**: click the pencil and the label becomes a field where it
+  already sits. <kbd>Enter</kbd> saves, <kbd>Esc</kbd> discards, clicking away saves. It does not
+  reuse the composer — that one is anchored to a position on the timeline, which the panel
+  covers, so renaming from the list would open a field underneath the list.
 - Bookmarks persist per file and survive reopening. Export to JSON from the list panel.
 
 **Keyboard** — every shortcut is rebindable in Settings → Keyboard shortcuts. Click a row, press
@@ -261,10 +265,10 @@ Clicks and keypresses both resolve to the same action ids, dispatched in one `sw
 
 Both drivers boot the actual app — nothing stubbed — and assert against what really happens.
 
-`scripts/drive.js` covers **42 behaviours**: media loads over the custom protocol with working
+`scripts/drive.js` covers **48 behaviours**: media loads over the custom protocol with working
 byte-range seeking, the composer captures the right timestamp, four bookmarks produce five
 timeline segments, hover tooltips carry chapter titles, submenus navigate, a rebound key starts
-working while the old one stops, the skip buttons move by the amount they display and keep
+working while the old one stops, a bookmark renames inside its own row, the skip buttons move by the amount they display and keep
 matching it after it is changed, picking a speed applies it and marks the button, dismissing a
 tray does not also toggle playback, a lying duration header falls back to `seekable`, a failed
 update check is stated rather than swallowed, and bookmarks reach disk and come back after a

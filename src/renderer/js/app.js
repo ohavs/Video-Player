@@ -171,7 +171,7 @@ const bookmarkPanel = new BookmarkPanel(dom.panelHost, {
       paintTime(true);
     }
   },
-  onEdit: (id) => editBookmark(id),
+  onRename: (id, text) => store.update(id, { text }),
   onDelete: (id) => {
     const bookmark = store.byId(id);
     if (!bookmark) return;
@@ -365,27 +365,9 @@ function addBookmark() {
   });
 }
 
-function editBookmark(id) {
-  const bookmark = store.byId(id);
-  if (!bookmark) return;
-
-  const wasPlaying = !player.paused;
-  const shouldPause = settings.get('pauseWhileAdding');
-  if (shouldPause) player.pause();
-  suppressAutoHide = true;
-
-  composer.show({
-    time: bookmark.time,
-    text: bookmark.text,
-    editingId: id,
-    anchorRatio: player.duration ? bookmark.time / player.duration : 0,
-    onCommit: ({ text }) => {
-      store.update(id, { text });
-      finishComposing(wasPlaying && shouldPause);
-    },
-    onCancel: () => finishComposing(wasPlaying && shouldPause),
-  });
-}
+// Renaming is handled inside the bookmark panel, in the row itself. The
+// composer is anchored to a position on the timeline, which the panel covers —
+// so editing from the list used to open a field underneath the list.
 
 function finishComposing(resume) {
   suppressAutoHide = false;

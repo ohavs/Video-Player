@@ -438,11 +438,17 @@ export class ShortcutsSheet {
  * ================================================================== */
 
 export class BookmarkPanel {
-  constructor(host, { onJump, onEdit, onDelete, onExport } = {}) {
-    this.handlers = { onJump, onEdit, onDelete, onExport };
+  constructor(host, { onJump, onRename, onDelete, onExport } = {}) {
+    this.handlers = { onJump, onRename, onDelete, onExport };
     this.open = false;
     this.items = [];
     this.activeId = null;
+
+    // Renaming happens in the row itself. It used to open the composer, which
+    // is anchored to the timeline underneath this panel — so the field you were
+    // asked to type in was behind the thing you had clicked in.
+    this.editingId = null;
+    this.draft = null;      // survives a re-render mid-edit
 
     this.root = document.createElement('aside');
     this.root.className = 'bookmarks-panel';
@@ -451,6 +457,34 @@ export class BookmarkPanel {
 
     this.root.addEventListener('click', (event) => this.handleClick(event));
     this.root.addEventListener('pointerdown', (event) => event.stopPropagation());
+    this.root.addEventListener('input', (event) => {
+      if (event.target.matches('[data-role="rename"]')) this.draft = event.target.value;
+    });
+    this.root.addEventListener('keydown', (event) => this.handleKey(event));
+    this.root.addEventListener('focusout', (event) => {
+      if (!event.target.matches('[data-role="rename"]')) return;
+      const { id } = event.target.closest('[data-id]').dataset;
+      // Same bargain the composer strikes: losing a label to a stray click
+      // elsewhere would be worse than the occasional unintended save. The delay
+      // lets a click on Save or Cancel land first.
+      setTimeout(() => {
+        if (this.editingId === id) this.commitEdit();
+      }, 120);
+    });
+  }
+
+  handleKey(event) {
+    if (!event.target.matches('[data-role="rename"]')) return;
+    // Every key here belongs to the field — without this, typing a label would
+    // fire the global shortcuts behind it.
+    event.stopPropagation();
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      this.commitEdit();
+    } else if (event.key === 'Escape') {
+      event.preventDefault();
+      this.cancelEdit();
+    }
   }
 
   handleClick(event) {
@@ -468,14 +502,65 @@ export class BookmarkPanel {
     if (!row) return;
     const { id } = row.dataset;
 
-    if (cmd === 'delete') this.handlers.onDelete?.(id);
-    else if (cmd === 'edit') this.handlers.onEdit?.(id);
-    else this.handlers.onJump?.(id);
+    if (cmd === 'save') this.commitEdit();
+    else if (cmd === 'cancel') this.cancelEdit();
+    else if (cmd === 'delete') this.handlers.onDelete?.(id);
+    else if (cmd === 'edit') this.beginEdit(id);
+    // Clicking the field itself is placing a cursor, not asking to jump.
+    else if (this.editingId !== id) this.handlers.onJump?.(id);
+  }
+
+  /* ---------------- renaming in place ---------------- */
+
+  beginEdit(id) {
+    const bookmark = this.items.find((item) => item.id === id);
+    if (!bookmark) return;
+    this.editingId = id;
+    this.draft = bookmark.text || '';
+    this.render();
+    this.focusField();
+  }
+
+  focusField() {
+    const field = this.root.querySelector('[data-role="rename"]');
+    if (!field) return;
+    field.focus();
+    // Cursor at the end rather than a full selection: renaming is usually
+    // amending a label, not replacing it.
+    const end = field.value.length;
+    field.setSelectionRange(end, end);
+  }
+
+  commitEdit() {
+    const id = this.editingId;
+    if (!id) return;
+    const text = (this.draft ?? '').trim();
+    this.editingId = null;
+    this.draft = null;
+    this.handlers.onRename?.(id, text);
+    this.render();
+  }
+
+  cancelEdit() {
+    if (!this.editingId) return;
+    this.editingId = null;
+    this.draft = null;
+    this.render();
   }
 
   setItems(items) {
     this.items = items || [];
-    if (this.open) this.render();
+    // A row being renamed that disappears from under the edit takes the edit
+    // with it.
+    if (this.editingId && !this.items.some((item) => item.id === this.editingId)) {
+      this.editingId = null;
+      this.draft = null;
+    }
+    if (this.open) {
+      const wasEditing = Boolean(this.editingId);
+      this.render();
+      if (wasEditing) this.focusField();
+    }
   }
 
   setActive(id) {
@@ -487,21 +572,37 @@ export class BookmarkPanel {
     }
   }
 
+  renderRow(bookmark) {
+    const active = bookmark.id === this.activeId ? ' is-active' : '';
+
+    if (bookmark.id === this.editingId) {
+      return `
+        <div class="bm-row is-editing${active}" data-id="${bookmark.id}">
+          <span class="bm-time">${formatTime(bookmark.time)}</span>
+          <input class="bm-edit" data-role="rename" type="text" maxlength="120"
+                 autocomplete="off" spellcheck="false"
+                 placeholder="Label this moment…" value="${escapeHtml(this.draft ?? bookmark.text ?? '')}" />
+          <span class="bm-actions">
+            <button class="btn-icon" data-cmd="save" type="button" aria-label="Save">${icon('check')}</button>
+            <button class="btn-icon" data-cmd="cancel" type="button" aria-label="Cancel">${icon('close')}</button>
+          </span>
+        </div>`;
+    }
+
+    return `
+      <div class="bm-row${active}" data-id="${bookmark.id}" role="button" tabindex="0">
+        <span class="bm-time">${formatTime(bookmark.time)}</span>
+        <span class="bm-text ${bookmark.text ? '' : 'is-untitled'}">${escapeHtml(bookmark.text || 'Untitled')}</span>
+        <span class="bm-actions">
+          <button class="btn-icon" data-cmd="edit" type="button" aria-label="Rename">${icon('pencil')}</button>
+          <button class="btn-icon" data-cmd="delete" type="button" aria-label="Delete">${icon('trash')}</button>
+        </span>
+      </div>`;
+  }
+
   render() {
     const rows = this.items.length
-      ? this.items
-          .map(
-            (bookmark) => `
-        <div class="bm-row ${bookmark.id === this.activeId ? 'is-active' : ''}" data-id="${bookmark.id}" role="button" tabindex="0">
-          <span class="bm-time">${formatTime(bookmark.time)}</span>
-          <span class="bm-text ${bookmark.text ? '' : 'is-untitled'}">${escapeHtml(bookmark.text || 'Untitled')}</span>
-          <span class="bm-actions">
-            <button class="btn-icon" data-cmd="edit" type="button" aria-label="Rename">${icon('pencil')}</button>
-            <button class="btn-icon" data-cmd="delete" type="button" aria-label="Delete">${icon('trash')}</button>
-          </span>
-        </div>`,
-          )
-          .join('')
+      ? this.items.map((bookmark) => this.renderRow(bookmark)).join('')
       : `<div class="bm-empty">
            <p>No bookmarks yet.</p>
            <p class="bm-empty-hint">Press the bookmark key while watching to mark the moment you are on.</p>
@@ -527,6 +628,9 @@ export class BookmarkPanel {
   }
 
   hide() {
+    // Closing the panel on a half-typed label keeps it, the same as clicking
+    // away from the field does.
+    if (this.editingId) this.commitEdit();
     this.open = false;
     this.root.classList.remove('is-open');
     // Wait out the slide-out before hiding, or it vanishes instead of leaving.

@@ -630,6 +630,38 @@
   font-style: italic;
 }
 
+/* Renaming in place. The field takes exactly the space the label had, so the
+   row does not resize under the pointer that just clicked the pencil. */
+.bm-edit {
+  flex: 1;
+  min-width: 0;
+  padding: 4px 7px;
+  border: 1px solid var(--mark);
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.35);
+  outline: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.4;
+  user-select: text;
+}
+
+.bm-edit::placeholder {
+  color: var(--text-faint);
+}
+
+.bm-row.is-editing {
+  background: rgba(255, 212, 0, 0.08);
+  cursor: default;
+}
+
+/* The row being edited keeps its buttons visible — they are Save and Cancel
+   now, not hover affordances. */
+.bm-row.is-editing .bm-actions {
+  opacity: 1;
+}
+
 .bm-actions {
   display: flex;
   gap: 1px;

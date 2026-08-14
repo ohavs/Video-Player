@@ -395,6 +395,81 @@ app.whenReady().then(async () => {
     panel.rows.join(' | '));
   await shot(win, '09-bookmark-list');
 
+  /* ---- 9b. renaming happens in the row, not under the panel ---- */
+  // The composer is anchored to the timeline, which this panel sits on top of,
+  // so editing from the list used to open a field behind the list.
+  await evaluate(win, `document.querySelector('.bm-row [data-cmd="edit"]').click()`);
+  await wait(500);
+
+  const editing = await evaluate(
+    win,
+    `(() => { const field = document.querySelector('.bm-edit');
+       if (!field) return { present: false };
+       const box = field.getBoundingClientRect();
+       const panel = document.querySelector('.bookmarks-panel').getBoundingClientRect();
+       return { present: true, focused: document.activeElement === field, value: field.value,
+                composerHidden: document.querySelector('.composer').hidden,
+                // The field has to be inside the panel, not behind it.
+                insidePanel: box.left >= panel.left - 1 && box.right <= panel.right + 1 }; })()`,
+  );
+  check('the pencil opens a field in the row itself', editing.present && editing.insidePanel,
+    `present=${editing.present} insidePanel=${editing.insidePanel}`);
+  check('the timeline composer is not used for renaming', editing.composerHidden);
+  check('the field is focused and carries the current label',
+    editing.focused && editing.value === 'Opening titles', `"${editing.value}" focused=${editing.focused}`);
+  await shot(win, '09b-rename-inline');
+
+  // Typing must reach the field rather than firing the shortcuts behind it.
+  await evaluate(win, `(() => { const f = document.querySelector('.bm-edit');
+     f.value = 'Opening titles, renamed';
+     f.dispatchEvent(new Event('input', { bubbles: true })); return true; })()`);
+  await wait(200);
+  key(win, 'Enter');
+  await wait(600);
+
+  const renamed = await evaluate(
+    win,
+    `(() => ({ label: document.querySelector('.bm-row .bm-text').textContent.trim(),
+               fieldGone: !document.querySelector('.bm-edit'),
+               composerHidden: document.querySelector('.composer').hidden })) ()`,
+  );
+  check('Enter saves the new label in place',
+    renamed.label === 'Opening titles, renamed' && renamed.fieldGone && renamed.composerHidden,
+    `"${renamed.label}"`);
+
+  // Escape must leave the original alone.
+  await evaluate(win, `document.querySelector('.bm-row [data-cmd="edit"]').click()`);
+  await wait(400);
+  await evaluate(win, `(() => { const f = document.querySelector('.bm-edit');
+     f.value = 'discard me'; f.dispatchEvent(new Event('input', { bubbles: true })); return true; })()`);
+  await wait(200);
+  key(win, 'Escape');
+  await wait(500);
+  const escaped = await evaluate(
+    win,
+    `(() => ({ label: document.querySelector('.bm-row .bm-text').textContent.trim(),
+               fieldGone: !document.querySelector('.bm-edit'),
+               panelOpen: document.querySelector('.bookmarks-panel').classList.contains('is-open') })) ()`,
+  );
+  check('Escape discards the edit and leaves the panel open',
+    escaped.label === 'Opening titles, renamed' && escaped.fieldGone && escaped.panelOpen,
+    `"${escaped.label}" panelOpen=${escaped.panelOpen}`);
+
+  // The rename has to reach the store, not just the row.
+  const storedLabel = await evaluate(
+    win,
+    `(() => { const marks = document.querySelectorAll('.scrub-mark');
+       return document.querySelector('[data-role="chapterName"]').textContent; })()`,
+  );
+  await evaluate(win, `document.querySelector('video').currentTime = 15`);
+  await wait(700);
+  const chapterAfterRename = await evaluate(
+    win,
+    `document.querySelector('[data-role="chapterName"]').textContent.trim()`,
+  );
+  check('the renamed label reaches the rest of the app',
+    chapterAfterRename === 'Opening titles, renamed', `control bar shows "${chapterAfterRename}"`);
+
   /* ---- 10. persistence ---- */
   await evaluate(win, `window.host.setSettings && 0`);
   await wait(300);
