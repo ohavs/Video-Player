@@ -9,10 +9,11 @@ import { KeyboardLayer } from './keyboard.js';
 import { BookmarkStore, BookmarkComposer } from './bookmarks.js';
 import { SettingsMenu, ShortcutsSheet, BookmarkPanel } from './panels.js';
 import { TrimBar, describeResult } from './trim.js';
+import { BarPopover } from './popover.js';
 import { settings, SPEED_STEPS } from './settings.js';
 import { bindingLabel } from './keymap.js';
 import { icon } from './icons.js';
-import { formatTime, formatSpeed, formatRelativeDate, clamp } from './format.js';
+import { formatTime, formatSpeed, formatSpeedShort, formatRelativeDate, clamp } from './format.js';
 
 const el = (role) => document.querySelector(`[data-role="${role}"]`);
 
@@ -96,6 +97,54 @@ const scrubber = new Scrubber(controls.scrubberHost, {
   },
 });
 
+/* ---- the two trays that hang off the control bar ---- */
+
+const SKIP_PRESETS = [5, 10, 15, 30, 60];
+
+function speedTrayHtml(current) {
+  const items = SPEED_STEPS.map((rate) => {
+    const on = Math.abs(rate - current) < 0.001 ? ' is-on' : '';
+    return `<button class="barpop-item${on}" data-cmd="speed" data-value="${rate}" type="button">${formatSpeedShort(rate)}</button>`;
+  }).join('');
+  return `<div class="barpop-title">Speed</div><div class="barpop-grid">${items}</div>`;
+}
+
+function skipTrayHtml(current) {
+  const items = SKIP_PRESETS.map((seconds) => {
+    const on = seconds === current ? ' is-on' : '';
+    return `<button class="barpop-item${on}" data-cmd="skip" data-value="${seconds}" type="button">${seconds}s</button>`;
+  }).join('');
+  return `
+    <div class="barpop-title">Skip amount</div>
+    <div class="barpop-grid">${items}</div>
+    <div class="barpop-stepper">
+      <button data-cmd="skipStep" data-value="-1" type="button" aria-label="Less">−</button>
+      <output>${current}s</output>
+      <button data-cmd="skipStep" data-value="1" type="button" aria-label="More">+</button>
+    </div>
+    <p class="barpop-note">The same amount the long-skip keys use.</p>
+  `;
+}
+
+// Both trays stay open after a choice. Speed in particular is something you
+// compare rather than set once, and a tray that closed on the first click would
+// have to be reopened for every comparison.
+const barPopover = new BarPopover(controls.popoverHost, {
+  onCommand: (command, value) => {
+    if (command === 'speed') {
+      applySpeed(Number(value));
+      barPopover.setContent(speedTrayHtml(player.rate));
+    } else if (command === 'skip' || command === 'skipStep') {
+      const next = command === 'skip'
+        ? Number(value)
+        : settings.get('longSeek') + Number(value);
+      settings.set('longSeek', next);
+      barPopover.setContent(skipTrayHtml(settings.get('longSeek')));
+    }
+    wake();
+  },
+});
+
 const composer = new BookmarkComposer(dom.composerHost);
 
 const trimBar = new TrimBar(dom.trimHost, {
@@ -158,6 +207,7 @@ function runAction(action) {
     return;
   }
   if (action === 'openSettings') {
+    barPopover.hide();
     menu.toggle();
     return;
   }
@@ -244,6 +294,15 @@ function runAction(action) {
     case 'toggleBookmarkList':
       bookmarkPanel.toggle();
       controls.setBookmarkListOpen(bookmarkPanel.open);
+      break;
+
+    case 'openSpeedMenu':
+      menu.hide();
+      barPopover.toggle('speed', controls.speedEl, speedTrayHtml(player.rate));
+      break;
+    case 'openSkipSettings':
+      menu.hide();
+      barPopover.toggle('skip', controls.skipSettingsEl, skipTrayHtml(settings.get('longSeek')));
       break;
 
     case 'toggleTrim':
@@ -857,6 +916,10 @@ function stopFrameLoop() {
 
 dom.stage.addEventListener('pointerdown', (event) => {
   if (event.target.closest('.controls, .menu, .bookmarks-panel, .composer, .sheet')) return;
+  if (barPopover.open) {
+    barPopover.hide();
+    return;
+  }
   if (menu.open) {
     menu.hide();
     return;
@@ -892,7 +955,8 @@ function wake() {
       shortcuts.open ||
       composer.isOpen ||
       bookmarkPanel.open ||
-      trimBar.open;
+      trimBar.open ||
+      barPopover.open;
     if (!busy) dom.app.classList.add('is-idle');
   }, delay);
 }
@@ -1245,6 +1309,9 @@ settings.subscribe((values, changed) => {
     dom.welcomeKey.textContent = bindingLabel(values.keymap.addBookmark?.[0]);
   }
   if (changed.includes('digitSeekEnabled')) keyboard.setDigitSeekEnabled(values.digitSeekEnabled);
+  // The number is drawn inside the skip glyphs, so it has to be redrawn
+  // wherever the setting is changed from — the tray, or the settings panel.
+  if (changed.includes('longSeek')) controls.setSkipAmount(values.longSeek);
   if (changed.includes('timelineMode')) scrubber.setMode(values.timelineMode);
   if (changed.includes('loop')) player.loop = values.loop;
   if (changed.includes('language')) {
@@ -1266,6 +1333,7 @@ async function boot() {
   controls.setPlaying(false);
   controls.setVolume(settings.get('volume'), settings.get('muted'));
   controls.setRate(settings.get('defaultSpeed'));
+  controls.setSkipAmount(settings.get('longSeek'));
   controls.setPipAvailable(Boolean(document.pictureInPictureEnabled));
   controls.setEnabled(false);
 

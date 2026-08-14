@@ -42,6 +42,12 @@ export function formatSpeed(rate) {
   return `${text}×`;
 }
 
+// The control bar needs a number even at 1×, because a button that reads
+// "Normal" is wider than the speeds it switches between and makes the bar jump.
+export function formatSpeedShort(rate) {
+  return `${Number(Number(rate).toFixed(2))}×`;
+}
+
 export function formatFileSize(bytes) {
   if (!Number.isFinite(bytes) || bytes <= 0) return '';
   const units = ['B', 'KB', 'MB', 'GB', 'TB'];

@@ -238,6 +238,101 @@ app.whenReady().then(async () => {
   const rate = await evaluate(win, `document.querySelector('video').playbackRate`);
   check('shift+. raises playback speed', rate > 1, `rate=${rate}`);
 
+  /* ---- 7b. speed and skip, straight from the control bar ---- */
+  await evaluate(
+    win,
+    `(() => { const m = document.querySelector('.menu');
+       if (m && !m.hidden) document.querySelector('[data-role="settings"]').click();
+       return true; })()`,
+  );
+  await wait(400);
+
+  const transport = await evaluate(
+    win,
+    `(() => {
+       const text = (role) => document.querySelector('[data-role="' + role + '"]').textContent.replace(/\\s+/g, '');
+       return { back: text('skipBack'), forward: text('skipForward'),
+                order: Array.from(document.querySelectorAll('.control-left [data-action]')).map((b) => b.dataset.action) }; })()`,
+  );
+  check('the skip pair brackets play and carries its own amount',
+    transport.back === '10' && transport.forward === '10'
+      && transport.order.slice(0, 4).join(',') === 'seekBackLong,playPause,seekForwardLong,openSkipSettings',
+    `${transport.order.slice(0, 4).join(' ')} — "${transport.back}" / "${transport.forward}"`);
+
+  await evaluate(win, `document.querySelector('video').pause(); document.querySelector('video').currentTime = 20; true`);
+  await wait(500);
+  await evaluate(win, `document.querySelector('[data-role="skipForward"]').click()`);
+  await wait(700);
+  const skipped10 = await evaluate(win, `document.querySelector('video').currentTime`);
+  check('the skip button moves by the amount it shows',
+    Math.abs(skipped10 - 30) < 1.5, `20s -> ${skipped10.toFixed(2)}s`);
+
+  await evaluate(win, `document.querySelector('[data-role="skipSettings"]').click()`);
+  await wait(500);
+  const skipTray = await evaluate(
+    win,
+    `(() => { const p = document.querySelector('.barpop');
+       return { open: Boolean(p) && !p.hidden, text: p ? p.textContent.replace(/\\s+/g, ' ').trim() : '' }; })()`,
+  );
+  check('the gear beside the skips opens an amount tray',
+    skipTray.open && /Skip amount/.test(skipTray.text), skipTray.text.slice(0, 52));
+  await shot(win, '06b-skip-tray');
+
+  await evaluate(win, `document.querySelector('.barpop [data-cmd="skip"][data-value="30"]').click()`);
+  await wait(500);
+  const retimed = await evaluate(
+    win,
+    `(() => ({ glyph: document.querySelector('[data-role="skipForward"]').textContent.replace(/\\s+/g, ''),
+               stillOpen: !document.querySelector('.barpop').hidden })) ()`,
+  );
+  check('choosing a different amount redraws both buttons', retimed.glyph === '30', `now "${retimed.glyph}"`);
+  check('the tray stays open so another can be tried', retimed.stillOpen);
+
+  await evaluate(win, `document.querySelector('video').currentTime = 10; true`);
+  await wait(500);
+  await evaluate(win, `document.querySelector('[data-role="skipForward"]').click()`);
+  await wait(700);
+  const skipped30 = await evaluate(win, `document.querySelector('video').currentTime`);
+  check('and the buttons really skip the new amount',
+    Math.abs(skipped30 - 40) < 1.5, `10s -> ${skipped30.toFixed(2)}s`);
+
+  await evaluate(win, `document.querySelector('[data-role="speed"]').click()`);
+  await wait(500);
+  const speedTray = await evaluate(
+    win,
+    `(() => { const p = document.querySelector('.barpop');
+       return { open: !p.hidden, text: p.textContent.replace(/\\s+/g, ' ').trim() }; })()`,
+  );
+  check('the speed button opens a speed tray',
+    speedTray.open && /Speed/.test(speedTray.text), speedTray.text.slice(0, 52));
+  await shot(win, '06c-speed-tray');
+
+  await evaluate(win, `document.querySelector('.barpop [data-cmd="speed"][data-value="1.5"]').click()`);
+  await wait(500);
+  const sped = await evaluate(
+    win,
+    `(() => ({ rate: document.querySelector('video').playbackRate,
+               label: document.querySelector('[data-role="rateText"]').textContent.trim(),
+               marked: document.querySelector('[data-role="speed"]').classList.contains('is-active') })) ()`,
+  );
+  check('picking a speed applies it and the button says so',
+    Math.abs(sped.rate - 1.5) < 0.001 && sped.label === '1.5×' && sped.marked,
+    `rate=${sped.rate} label="${sped.label}" marked=${sped.marked}`);
+
+  // Dismissing the tray must not also toggle playback underneath it.
+  const pausedBefore = await evaluate(win, `document.querySelector('video').paused`);
+  const stageBox = await rectOf(win, '.stage');
+  click(win, stageBox.x, stageBox.top + 90);
+  await wait(500);
+  const dismissed = await evaluate(
+    win,
+    `(() => ({ hidden: document.querySelector('.barpop').hidden,
+               paused: document.querySelector('video').paused })) ()`,
+  );
+  check('clicking the video closes the tray without also toggling play',
+    dismissed.hidden && dismissed.paused === pausedBefore,
+    `hidden=${dismissed.hidden} paused ${pausedBefore} -> ${dismissed.paused}`);
+
   /* ---- 8. shortcuts editor + rebinding ---- */
   await evaluate(win, `document.querySelector('.menu').classList.contains('is-open') && document.querySelector('[data-role="settings"]').click()`);
   await wait(300);

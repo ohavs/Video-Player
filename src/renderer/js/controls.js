@@ -4,8 +4,8 @@
 // it reports intent as action ids, the same vocabulary the keyboard layer uses,
 // so a click and a keypress travel exactly one code path.
 
-import { icon, volumeIcon } from './icons.js';
-import { formatPair, formatSpeed } from './format.js';
+import { icon, volumeIcon, skipIcon } from './icons.js';
+import { formatPair, formatSpeedShort } from './format.js';
 import { bindingLabel } from './keymap.js';
 
 export class Controls {
@@ -13,18 +13,31 @@ export class Controls {
     this.root = root;
     this.onAction = onAction || (() => {});
     this.onVolumeInput = onVolumeInput || (() => {});
+    this.skipSeconds = 10;
     this.build();
     this.bind();
+    this.setSkipAmount(this.skipSeconds);
   }
 
   build() {
     this.root.className = 'controls';
     this.root.innerHTML = `
       <div class="scrubber-host" data-role="scrubberHost"></div>
+      <div class="barpop-host" data-role="popoverHost"></div>
       <div class="control-row">
         <div class="control-group control-left">
+          <!-- The skip pair brackets play, and the amount they carry is the same
+               number the long-seek keys use, so the two can never disagree. -->
+          <button class="cbtn" data-action="seekBackLong" data-role="skipBack"
+                  type="button" aria-label="Skip back"></button>
           <button class="cbtn" data-action="playPause" data-role="play" type="button" aria-label="Play">
             ${icon('play')}
+          </button>
+          <button class="cbtn" data-action="seekForwardLong" data-role="skipForward"
+                  type="button" aria-label="Skip forward"></button>
+          <button class="cbtn cbtn-tiny" data-action="openSkipSettings" data-role="skipSettings"
+                  type="button" aria-label="Change skip amount">
+            ${icon('settings')}
           </button>
 
           <div class="volume" data-role="volume">
@@ -50,7 +63,12 @@ export class Controls {
         </div>
 
         <div class="control-group control-right">
-          <span class="rate-badge" data-role="rateBadge" hidden>1×</span>
+          <!-- A live control, not the old read-only badge: speed was two menus
+               deep, which is too far for something you adjust while watching. -->
+          <button class="cbtn cbtn-rate" data-action="openSpeedMenu" data-role="speed"
+                  type="button" aria-label="Playback speed">
+            <span class="rate-text" data-role="rateText">1×</span>
+          </button>
 
           <button class="cbtn cbtn-accent" data-action="addBookmark" data-role="addBookmark"
                   type="button" aria-label="Add bookmark">
@@ -83,14 +101,19 @@ export class Controls {
 
     const q = (role) => this.root.querySelector(`[data-role="${role}"]`);
     this.scrubberHost = q('scrubberHost');
+    this.popoverHost = q('popoverHost');
     this.playEl = q('play');
+    this.skipBackEl = q('skipBack');
+    this.skipForwardEl = q('skipForward');
+    this.skipSettingsEl = q('skipSettings');
+    this.speedEl = q('speed');
+    this.rateTextEl = q('rateText');
     this.muteEl = q('mute');
     this.volumeRangeEl = q('volumeRange');
     this.timeCurrentEl = q('timeCurrent');
     this.timeDurationEl = q('timeDuration');
     this.chapterEl = q('chapter');
     this.chapterNameEl = q('chapterName');
-    this.rateBadgeEl = q('rateBadge');
     this.bookmarkCountEl = q('bookmarkCount');
     this.pipEl = q('pip');
     this.fullscreenEl = q('fullscreen');
@@ -151,9 +174,23 @@ export class Controls {
   }
 
   setRate(rate) {
-    const isNormal = Math.abs(rate - 1) < 0.001;
-    this.rateBadgeEl.hidden = isNormal;
-    this.rateBadgeEl.textContent = formatSpeed(rate);
+    this.rateTextEl.textContent = formatSpeedShort(rate);
+    // Anything but 1× is a state the user has put the player into and may have
+    // forgotten about, so the button marks itself rather than blending in.
+    this.speedEl.classList.toggle('is-active', Math.abs(rate - 1) >= 0.001);
+    this.applyHint(this.speedEl, 'openSpeedMenu', 'Playback speed');
+  }
+
+  // Redrawn rather than labelled once: the number lives inside the glyph, so
+  // changing the amount has to redraw both arrows.
+  setSkipAmount(seconds) {
+    this.skipSeconds = Math.max(1, Math.round(Number(seconds) || 10));
+    this.skipBackEl.innerHTML = skipIcon(this.skipSeconds, -1);
+    this.skipForwardEl.innerHTML = skipIcon(this.skipSeconds, 1);
+    this.skipBackEl.setAttribute('aria-label', `Skip back ${this.skipSeconds} seconds`);
+    this.skipForwardEl.setAttribute('aria-label', `Skip forward ${this.skipSeconds} seconds`);
+    this.applyHint(this.skipBackEl, 'seekBackLong', `Back ${this.skipSeconds}s`);
+    this.applyHint(this.skipForwardEl, 'seekForwardLong', `Forward ${this.skipSeconds}s`);
   }
 
   setChapter(title) {
@@ -207,6 +244,12 @@ export class Controls {
     this.keymap = keymap || {};
     const labels = {
       playPause: 'Play/pause',
+      // Built from the live amount, so a rebind and a changed skip length both
+      // end up in the same tooltip.
+      seekBackLong: `Back ${this.skipSeconds}s`,
+      seekForwardLong: `Forward ${this.skipSeconds}s`,
+      openSkipSettings: 'Change skip amount',
+      openSpeedMenu: 'Playback speed',
       mute: 'Mute',
       addBookmark: 'Add bookmark',
       toggleBookmarkList: 'Bookmark list',

@@ -65,10 +65,23 @@ row says so rather than failing quietly.
 
 ## What it does
 
-**Playback** — play/pause, seek, volume, ten playback speeds (0.25×–3×), loop, fullscreen,
-picture-in-picture, frame-by-frame stepping. Frame stepping measures the file's real frame rate
-via `requestVideoFrameCallback` instead of assuming 30fps, so it is accurate on 24 and 60fps
-footage.
+**Playback** — play/pause, seek, volume, loop, fullscreen, picture-in-picture, frame-by-frame
+stepping. Frame stepping measures the file's real frame rate via `requestVideoFrameCallback`
+instead of assuming 30fps, so it is accurate on 24 and 60fps footage.
+
+**The control bar carries the two things you adjust while watching**, rather than burying them
+in a menu:
+
+- **Skip buttons** flank play, drawn with their own amount inside them the way every streaming
+  app draws them. The small gear beside them opens a tray: presets at 5/10/15/30/60 seconds, and
+  a −/+ stepper for any other number. Change it and both arrows redraw. It is the same value the
+  long-skip keys (<kbd>J</kbd> / <kbd>L</kbd>) use, so the button and the key can never disagree.
+- **Speed** is a button showing the current rate, not a badge that only appears when something is
+  wrong. Click it for all ten speeds (0.25×–3×). It turns yellow off 1×, because a player left at
+  2× is a state worth noticing.
+
+Both trays stay open after a choice — speed especially is something you compare rather than set
+once, and a tray that closed on the first click would have to be reopened for every comparison.
 
 **Bookmarks** — the reason this exists.
 
@@ -204,6 +217,7 @@ src/
       controls.js   control bar
       progress.js   the scrubber: buffered ranges, hover, drag, chapter segments
       bookmarks.js  bookmark model + the inline composer
+      popover.js    the small trays that hang off the control bar
       trim.js       the trim bar and export progress
       panels.js     settings menu, shortcuts editor, bookmark list
       keyboard.js   global shortcut dispatch
@@ -225,11 +239,14 @@ Clicks and keypresses both resolve to the same action ids, dispatched in one `sw
 
 Both drivers boot the actual app — nothing stubbed — and assert against what really happens.
 
-`scripts/drive.js` covers **29 behaviours**: media loads over the custom protocol with working
+`scripts/drive.js` covers **42 behaviours**: media loads over the custom protocol with working
 byte-range seeking, the composer captures the right timestamp, four bookmarks produce five
 timeline segments, hover tooltips carry chapter titles, submenus navigate, a rebound key starts
-working while the old one stops, a lying duration header falls back to `seekable`, and bookmarks
-reach disk and come back after a restart.
+working while the old one stops, the skip buttons move by the amount they display and keep
+matching it after it is changed, picking a speed applies it and marks the button, dismissing a
+tray does not also toggle playback, a lying duration header falls back to `seekable`, a failed
+update check is stated rather than swallowed, and bookmarks reach disk and come back after a
+restart.
 
 `scripts/drive-trim.js` covers **32 more**, ending in files on disk whose durations are measured
 back with ffmpeg: a fast cut keeps the whole marked range and reports how much earlier it really

@@ -97,4 +97,23 @@ export function volumeIcon(level, options = {}) {
   );
 }
 
+// Skip buttons carry their own amount, the way every player and streaming app
+// draws them: a circular arrow with the number of seconds inside it. The glyph
+// is the replay ring, mirrored for the forward direction, so both halves of the
+// pair are visibly the same control pointing opposite ways.
+export function skipIcon(seconds, direction = 1, options = {}) {
+  const label = String(Math.max(0, Math.round(Number(seconds) || 0)));
+  // Three digits in a 10px-wide hole needs a smaller face, or it spills over
+  // the ring — a 300-second skip is allowed by the settings range.
+  const fontSize = label.length > 2 ? 7 : 8.6;
+  const flip = direction > 0 ? ' transform="scale(-1,1) translate(-24,0)"' : '';
+
+  return svg(
+    `<path fill="currentColor" d="${FILLED.replay}"${flip}/>`
+      + `<text x="12" y="15.4" text-anchor="middle" fill="currentColor"`
+      + ` font-size="${fontSize}" font-weight="700" font-family="inherit">${label}</text>`,
+    options,
+  );
+}
+
 export const ICON_NAMES = [...Object.keys(FILLED), ...Object.keys(STROKED), 'volume'];
