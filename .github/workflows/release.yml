@@ -57,24 +57,36 @@ jobs:
             Write-Host "Releasing $tag"
           }
 
-      # GitHub rejects a published (non-draft) release whose tag does not exist:
-      # "Published releases must have a valid tag". electron-builder does not
-      # create the tag itself, so it is created here before the build runs.
-      # A tag pushed with GITHUB_TOKEN does not re-trigger this workflow, so
-      # this cannot loop.
-      - name: Ensure tag exists
+      # Created here, before the build, and deliberately not left to
+      # electron-builder.
+      #
+      # electron-builder uploads its artifacts concurrently, and each upload
+      # looks for the release and creates it when absent. When two of them look
+      # at the same moment both create it: one wins, the other gets
+      # "422 already_exists" and takes the whole publish down with it. That is
+      # how v0.4.0 shipped carrying its installer but not latest.yml — a release
+      # the updater cannot see at all.
+      #
+      # A release that already exists is never raced for. This also creates the
+      # tag, so there is no separate tagging step.
+      - name: Create the release
         if: steps.gate.outputs.release == 'true'
         shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           $tag = "v${{ steps.version.outputs.value }}"
-          $existing = git ls-remote --tags origin "refs/tags/$tag"
-          if ($existing) {
+          gh release view $tag *> $null
+          if ($LASTEXITCODE -eq 0) {
             Write-Host "$tag already exists, reusing it"
           } else {
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git tag $tag
-            git push origin $tag
+            gh release create $tag --title "${{ steps.version.outputs.value }}" --target $env:GITHUB_SHA --generate-notes
+            if ($LASTEXITCODE -ne 0) {
+              # Generated notes need a previous tag to diff against; the very
+              # first release has none.
+              gh release create $tag --title "${{ steps.version.outputs.value }}" --target $env:GITHUB_SHA --notes "Automated release."
+            }
+            if ($LASTEXITCODE -ne 0) { throw "could not create $tag" }
             Write-Host "Created $tag"
           }
 
@@ -99,7 +111,43 @@ jobs:
           & $ffmpeg -hide_banner -version | Select-Object -First 1
 
       - name: Build and publish installer
+        id: publish
         if: steps.gate.outputs.release == 'true'
+        continue-on-error: true
         run: npm run dist -- --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Uploading a ~120MB asset is the one step here likely to fail for reasons
+      # that have nothing to do with the code. Re-running attaches whatever is
+      # missing to the release that already exists, so it is safe to repeat.
+      - name: Retry publishing
+        if: steps.gate.outputs.release == 'true' && steps.publish.outcome == 'failure'
+        run: npm run dist -- --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # The check that would have caught v0.4.0. A release carrying the
+      # installer but not latest.yml is invisible to the updater: the app finds
+      # nothing, says it is up to date, and the version sits unnoticed. Shipping
+      # that silently is the exact failure this workflow exists to prevent, so
+      # the outcome is asserted rather than assumed.
+      - name: Verify the release is complete
+        if: steps.gate.outputs.release == 'true'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $tag = "v${{ steps.version.outputs.value }}"
+          $attached = @(gh release view $tag --json assets --jq '.assets[].name')
+          Write-Host "Attached to $tag :"
+          $attached | ForEach-Object { Write-Host "  $_" }
+
+          $required = @("latest.yml", "VideoPlayer-Setup-${{ steps.version.outputs.value }}.exe")
+          $missing = $required | Where-Object { $attached -notcontains $_ }
+
+          if ($missing) {
+            Write-Error "$tag is missing: $($missing -join ', '). The updater would never see this release."
+            exit 1
+          }
+          Write-Host "$tag is complete and visible to the updater."

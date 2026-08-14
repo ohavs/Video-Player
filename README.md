@@ -46,8 +46,18 @@ npm version patch
 git push --follow-tags
 ```
 
-The tag triggers `.github/workflows/release.yml`, which builds the installer on Windows and
-attaches it to a GitHub Release — the same feed the installed app reads.
+`.github/workflows/release.yml` builds the installer on Windows and attaches it to a GitHub
+Release — the same feed the installed app reads.
+
+The release is created *before* the build, not left to electron-builder. Its uploads run
+concurrently and each one creates the release if it is absent, so two starting together means
+one wins and the other gets `422 already_exists` and fails the publish. That is how v0.4.0 came
+to carry its installer but not `latest.yml`, which made it invisible to the updater. A release
+that already exists is never raced for.
+
+The last step asserts that both `latest.yml` and the `.exe` are attached. A release missing the
+feed file looks fine on the releases page while every installed copy reports "up to date"
+forever — the one failure worth failing the build over.
 
 Two requirements for updates to reach users: the repository must be **public** (an unsigned
 update check sends no credentials), and each release needs a version number higher than the
