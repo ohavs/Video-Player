@@ -39,6 +39,18 @@ notice a version published while it was running.
 New versions download in the background and install when you next quit. Settings (⚙) →
 **Check for updates** forces a check too.
 
+Updates install **silently**: the window closes and reopens on the new version, with no
+installer wizard. There is nothing for that wizard to ask — the install location has been in the
+registry since the first install — so every page of it was a Next button standing between the
+user and the update they had just asked for.
+
+The wizard still appears for the **first** install, where choosing a folder is a real choice
+(`oneClick: false`). Only updates are silent.
+
+One caveat inherent to how this works: `quitAndInstall` runs in the *outgoing* version, so the
+silent flag takes effect from the first update installed **by** a build that has it — the update
+that introduces it is still installed by the old, noisy code.
+
 Publishing a new version:
 
 ```bash

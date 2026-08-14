@@ -79,9 +79,20 @@ async function check({ silent = false } = {}) {
 
 function install() {
   if (state.status !== 'ready') return false;
-  // isSilent false so the user sees the installer; isForceRunAfter reopens the
-  // app once it finishes.
-  setImmediate(() => autoUpdater.quitAndInstall(false, true));
+
+  // Silent. The wizard it used to show had nothing to ask — the install
+  // location is already in the registry from the first install, so every page
+  // was a Next button standing between the user and the update they had just
+  // asked for by pressing "Restart & update".
+  //
+  // The window closes and reopens on the new version, which is what pressing
+  // that button looks like it should do. isForceRunAfter is what reopens it;
+  // without it the app would simply vanish.
+  //
+  // Quitting normally with an update downloaded already installed silently —
+  // electron-updater's own on-quit path passes isSilent itself — so this also
+  // makes the two routes behave the same way.
+  setImmediate(() => autoUpdater.quitAndInstall(true, true));
   return true;
 }
 
