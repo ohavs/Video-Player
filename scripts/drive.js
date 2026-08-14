@@ -77,10 +77,12 @@ function click(win, x, y) {
   win.webContents.sendInputEvent({ type: 'mouseUp', ...position, button: 'left', clickCount: 1 });
 }
 
-async function addBookmarkAt(win, seconds, label) {
+// The bookmark key is rebindable, and this driver rebinds it partway through,
+// so anything adding a bookmark after that point has to say which key to press.
+async function addBookmarkAt(win, seconds, label, bookmarkKey = 'b') {
   await evaluate(win, `document.querySelector('video').currentTime = ${seconds}`);
   await wait(400);
-  key(win, 'b');
+  key(win, bookmarkKey);
   await wait(350);
   const open = await evaluate(win, `!document.querySelector('.composer').hidden`);
   if (!open) return false;
@@ -469,6 +471,99 @@ app.whenReady().then(async () => {
   );
   check('the renamed label reaches the rest of the app',
     chapterAfterRename === 'Opening titles, renamed', `control bar shows "${chapterAfterRename}"`);
+
+  /* ---- 9c. deleting asks first, then stays undoable ---- */
+  const beforeDelete = await evaluate(win, `document.querySelectorAll('.bm-row').length`);
+
+  await evaluate(win, `document.querySelectorAll('.bm-row')[1].querySelector('[data-cmd="delete"]').click()`);
+  await wait(400);
+  const asked = await evaluate(
+    win,
+    `(() => { const row = document.querySelector('.bm-row.is-confirming');
+       return { asking: Boolean(row), text: row ? row.textContent.replace(/\\s+/g, ' ').trim() : '',
+                stillThere: document.querySelectorAll('.bm-row').length,
+                label: row ? row.dataset.id : '' }; })()`,
+  );
+  check('the bin asks before deleting anything',
+    asked.asking && /Delete\?/.test(asked.text) && /Delete/.test(asked.text) && /Keep/.test(asked.text)
+      && asked.stillThere === beforeDelete,
+    asked.text);
+  await shot(win, '09c-delete-confirm');
+
+  // Saying no leaves it exactly where it was.
+  await evaluate(win, `document.querySelector('.bm-row.is-confirming [data-cmd="cancelDelete"]').click()`);
+  await wait(400);
+  const kept = await evaluate(
+    win,
+    `(() => ({ rows: document.querySelectorAll('.bm-row').length,
+               asking: Boolean(document.querySelector('.bm-row.is-confirming')) })) ()`,
+  );
+  check('answering Keep cancels the delete',
+    kept.rows === beforeDelete && !kept.asking, `${kept.rows} rows, asking=${kept.asking}`);
+
+  // Now go through with it.
+  await evaluate(win, `document.querySelectorAll('.bm-row')[1].querySelector('[data-cmd="delete"]').click()`);
+  await wait(300);
+  await evaluate(win, `document.querySelector('.bm-row.is-confirming [data-cmd="confirmDelete"]').click()`);
+  await wait(500);
+
+  const deleted = await evaluate(
+    win,
+    `(() => { const undo = document.querySelector('.bm-undo');
+       const bar = undo ? undo.querySelector('.bm-undo-bar') : null;
+       return { undoShown: Boolean(undo),
+                hasButton: Boolean(undo && undo.querySelector('[data-cmd="undo"]')),
+                counting: undo ? undo.querySelector('[data-role="undoCount"]').textContent.trim() : '',
+                animated: bar ? getComputedStyle(bar).animationName : 'none',
+                // The deletion itself has to have happened, not be held back.
+                marks: document.querySelectorAll('.scrub-mark').length,
+                badge: document.querySelector('[data-role="bookmarkCount"]').textContent }; })()`,
+  );
+  check('confirming deletes it and offers an undo with a running clock',
+    deleted.undoShown && deleted.hasButton && deleted.animated === 'bm-undo-drain'
+      && Number(deleted.counting) > 0 && Number(deleted.counting) <= 5,
+    `count=${deleted.counting} animation=${deleted.animated}`);
+  check('the delete is applied straight away, not deferred',
+    deleted.badge === '3', `bookmark count now ${deleted.badge}`);
+  await shot(win, '09d-delete-undo');
+
+  // And taking it back restores the original, not a copy of it.
+  await evaluate(win, `document.querySelector('[data-cmd="undo"]').click()`);
+  await wait(600);
+  const putBack = await evaluate(
+    win,
+    `(() => ({ rows: document.querySelectorAll('.bm-row').length,
+               undoGone: !document.querySelector('.bm-undo'),
+               badge: document.querySelector('[data-role="bookmarkCount"]').textContent,
+               labels: Array.from(document.querySelectorAll('.bm-row .bm-text')).map((n) => n.textContent.trim()) })) ()`,
+  );
+  check('undo puts the bookmark back where it was',
+    putBack.rows === beforeDelete && putBack.undoGone && putBack.badge === '4'
+      && putBack.labels[1] === 'Second section',
+    `${putBack.labels.join(' | ')}`);
+
+  // Letting the window run out commits it.
+  await evaluate(win, `document.querySelectorAll('.bm-row')[1].querySelector('[data-cmd="delete"]').click()`);
+  await wait(300);
+  await evaluate(win, `document.querySelector('.bm-row.is-confirming [data-cmd="confirmDelete"]').click()`);
+  await wait(6200);
+  const expired = await evaluate(
+    win,
+    `(() => ({ undoGone: !document.querySelector('.bm-undo'),
+               rows: document.querySelectorAll('.bm-row').length,
+               badge: document.querySelector('[data-role="bookmarkCount"]').textContent })) ()`,
+  );
+  check('after five seconds the undo offer retires and the delete stands',
+    expired.undoGone && expired.rows === beforeDelete - 1 && expired.badge === '3',
+    `${expired.rows} rows, badge ${expired.badge}`);
+
+  // Put it back so the later persistence checks still see four. By this point
+  // the bookmark key has been rebound to N by the shortcuts test above.
+  const readded = await addBookmarkAt(win, 24, 'Second section', 'n');
+  await wait(500);
+  const restocked = await evaluate(win, `document.querySelectorAll('.bm-row').length`);
+  check('the deleted bookmark can simply be made again',
+    readded && restocked === beforeDelete, `re-added=${readded}, ${restocked} rows`);
 
   /* ---- 10. persistence ---- */
   await evaluate(win, `window.host.setSettings && 0`);

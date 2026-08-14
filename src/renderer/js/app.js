@@ -172,12 +172,8 @@ const bookmarkPanel = new BookmarkPanel(dom.panelHost, {
     }
   },
   onRename: (id, text) => store.update(id, { text }),
-  onDelete: (id) => {
-    const bookmark = store.byId(id);
-    if (!bookmark) return;
-    store.remove(id);
-    toast(`Removed ${formatTime(bookmark.time)}`);
-  },
+  onDelete: (id) => deleteBookmark(id),
+  onUndoDelete: () => undoDelete(),
   onExport: () => exportBookmarks(),
 });
 
@@ -368,6 +364,57 @@ function addBookmark() {
 // Renaming is handled inside the bookmark panel, in the row itself. The
 // composer is anchored to a position on the timeline, which the panel covers —
 // so editing from the list used to open a field underneath the list.
+
+/* ---- deleting, and the window in which it can be taken back ---- */
+
+const UNDO_WINDOW = 5000;
+
+// The panel has already asked "delete this?" by the time this runs.
+//
+// The removal is applied immediately rather than deferred: the timeline mark
+// disappears, the chapters close up, the count drops. Holding it back for five
+// seconds would mean confirming a deletion and watching nothing happen. What
+// the window buys is the ability to put it back, not a delay before it starts.
+let pendingDelete = null;   // { bookmark, expiresAt, window, timer }
+
+function deleteBookmark(id) {
+  const bookmark = store.byId(id);
+  if (!bookmark) return;
+
+  // One at a time. Deleting a second bookmark closes the first window rather
+  // than stacking two countdowns nobody can follow.
+  closeUndoWindow();
+
+  store.remove(id);
+  pendingDelete = {
+    bookmark,
+    expiresAt: Date.now() + UNDO_WINDOW,
+    window: UNDO_WINDOW,
+    timer: setTimeout(closeUndoWindow, UNDO_WINDOW),
+  };
+  bookmarkPanel.setPendingDelete(pendingDelete);
+}
+
+function undoDelete() {
+  if (!pendingDelete) return;
+  const { bookmark, timer } = pendingDelete;
+  clearTimeout(timer);
+  pendingDelete = null;
+  // Restored, not re-added: the same id, time, text and creation stamp come
+  // back, so it is the bookmark that was deleted rather than a copy of it.
+  store.restore(bookmark);
+  bookmarkPanel.setPendingDelete(null);
+  toast(`Restored ${formatTime(bookmark.time)}`);
+}
+
+// Lets the deletion stand. Nothing to write — the store was updated when the
+// row went away; this only retires the offer to undo it.
+function closeUndoWindow() {
+  if (!pendingDelete) return;
+  clearTimeout(pendingDelete.timer);
+  pendingDelete = null;
+  bookmarkPanel.setPendingDelete(null);
+}
 
 function finishComposing(resume) {
   suppressAutoHide = false;
@@ -658,6 +705,8 @@ async function openFile(file) {
   if (!file?.url) return;
 
   await store.flush();
+  // An undo offer belongs to the file whose bookmark it was.
+  closeUndoWindow();
   currentFile = file;
   resetTrimForNewFile();
 

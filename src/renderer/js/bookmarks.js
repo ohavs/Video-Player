@@ -106,6 +106,20 @@ export class BookmarkStore {
     return true;
   }
 
+  // Puts a removed bookmark back exactly as it was. add() would mint a new id
+  // and a new creation time, which is a different bookmark that happens to look
+  // the same — undo has to restore the original or nothing referring to it
+  // survives.
+  restore(bookmark) {
+    if (!bookmark || !isValid(bookmark)) return null;
+    if (this.items.some((item) => item.id === bookmark.id)) return null;
+    this.items.push(bookmark);
+    this.items.sort(byTime);
+    this.emit();
+    this.save();
+    return bookmark;
+  }
+
   clear() {
     if (!this.items.length) return;
     this.items = [];

@@ -438,11 +438,21 @@ export class ShortcutsSheet {
  * ================================================================== */
 
 export class BookmarkPanel {
-  constructor(host, { onJump, onRename, onDelete, onExport } = {}) {
-    this.handlers = { onJump, onRename, onDelete, onExport };
+  constructor(host, { onJump, onRename, onDelete, onUndoDelete, onExport } = {}) {
+    this.handlers = { onJump, onRename, onDelete, onUndoDelete, onExport };
     this.open = false;
     this.items = [];
     this.activeId = null;
+
+    // Deleting asks first, in the row rather than in a dialog — the same
+    // two-step the "Clear all" button uses, and no modal anywhere in this app.
+    this.confirmingId = null;
+    this.confirmTimer = null;
+
+    // Then it stays undoable for a few seconds. The coordinator owns the clock;
+    // this only draws it.
+    this.pending = null;      // { bookmark, expiresAt, window }
+    this.countdownTimer = null;
 
     // Renaming happens in the row itself. It used to open the composer, which
     // is anchored to the timeline underneath this panel — so the field you were
@@ -497,6 +507,10 @@ export class BookmarkPanel {
       this.handlers.onExport?.();
       return;
     }
+    if (cmd === 'undo') {
+      this.handlers.onUndoDelete?.();
+      return;
+    }
 
     const row = event.target.closest('[data-id]');
     if (!row) return;
@@ -504,10 +518,71 @@ export class BookmarkPanel {
 
     if (cmd === 'save') this.commitEdit();
     else if (cmd === 'cancel') this.cancelEdit();
-    else if (cmd === 'delete') this.handlers.onDelete?.(id);
+    else if (cmd === 'delete') this.askDelete(id);
+    else if (cmd === 'confirmDelete') this.confirmDelete(id);
+    else if (cmd === 'cancelDelete') this.clearConfirm();
     else if (cmd === 'edit') this.beginEdit(id);
     // Clicking the field itself is placing a cursor, not asking to jump.
-    else if (this.editingId !== id) this.handlers.onJump?.(id);
+    else if (this.editingId !== id && this.confirmingId !== id) this.handlers.onJump?.(id);
+  }
+
+  /* ---------------- deleting, in two steps ---------------- */
+
+  askDelete(id) {
+    if (this.editingId) this.commitEdit();
+    this.confirmingId = id;
+    this.armConfirmTimeout();
+    this.render();
+  }
+
+  // An armed row that is never answered disarms itself, so a stray click does
+  // not leave a Delete button sitting under the pointer indefinitely.
+  armConfirmTimeout() {
+    clearTimeout(this.confirmTimer);
+    this.confirmTimer = setTimeout(() => {
+      if (this.confirmingId) this.clearConfirm();
+    }, 6000);
+  }
+
+  clearConfirm() {
+    clearTimeout(this.confirmTimer);
+    this.confirmTimer = null;
+    if (!this.confirmingId) return;
+    this.confirmingId = null;
+    this.render();
+  }
+
+  confirmDelete(id) {
+    clearTimeout(this.confirmTimer);
+    this.confirmTimer = null;
+    this.confirmingId = null;
+    this.handlers.onDelete?.(id);
+  }
+
+  /* ---------------- the undo window ---------------- */
+
+  // `pending` is { bookmark, expiresAt, window } or null.
+  setPendingDelete(pending) {
+    this.pending = pending || null;
+    if (this.open) this.render();
+    this.driveCountdown();
+  }
+
+  // Only the number ticks, and it is written straight into its node. Re-render
+  // once a second would restart the draining bar and drop keyboard focus.
+  driveCountdown() {
+    clearInterval(this.countdownTimer);
+    this.countdownTimer = null;
+    if (!this.pending) return;
+
+    const paint = () => {
+      const node = this.root.querySelector('[data-role="undoCount"]');
+      if (!node) return;
+      const left = Math.max(0, Math.ceil((this.pending.expiresAt - Date.now()) / 1000));
+      node.textContent = String(left);
+    };
+    paint();
+    this.countdownTimer = setInterval(paint, 250);
   }
 
   /* ---------------- renaming in place ---------------- */
@@ -572,8 +647,47 @@ export class BookmarkPanel {
     }
   }
 
+  // The vanishing bookmark keeps its place in the list rather than moving to a
+  // corner: undo belongs where the row was, which is where the eye already is.
+  //
+  // The bar drains with a CSS animation, and a negative delay set from the time
+  // already elapsed makes it resume mid-flight instead of restarting whenever
+  // the list re-renders under it.
+  renderPendingRow() {
+    const { bookmark, expiresAt, window: span } = this.pending;
+    const elapsed = Math.max(0, Math.min(span, span - (expiresAt - Date.now())));
+    const label = bookmark.text ? escapeHtml(bookmark.text) : 'Untitled';
+
+    return `
+      <div class="bm-row bm-undo" data-pending="${escapeHtml(bookmark.id)}">
+        <span class="bm-time">${formatTime(bookmark.time)}</span>
+        <span class="bm-undo-text">
+          Deleted <span class="bm-undo-name">${label}</span>
+        </span>
+        <span class="bm-undo-count" data-role="undoCount">${Math.ceil(span / 1000)}</span>
+        <button class="bm-undo-btn" data-cmd="undo" type="button">Undo</button>
+        <span class="bm-undo-bar" style="animation-duration:${span}ms;animation-delay:-${elapsed}ms"></span>
+      </div>`;
+  }
+
   renderRow(bookmark) {
     const active = bookmark.id === this.activeId ? ' is-active' : '';
+
+    if (bookmark.id === this.confirmingId) {
+      return `
+        <div class="bm-row is-confirming${active}" data-id="${bookmark.id}">
+          <span class="bm-time">${formatTime(bookmark.time)}</span>
+          <!-- Short on purpose. The panel is narrow, and "Delete this
+               bookmark?" truncated to "Delete this boo…" — which says less than
+               one word does. The row is already highlighted in place with its
+               own timestamp, so which bookmark is never in question. -->
+          <span class="bm-confirm-text">Delete?</span>
+          <span class="bm-actions">
+            <button class="bm-confirm-go" data-cmd="confirmDelete" type="button">Delete</button>
+            <button class="bm-confirm-no" data-cmd="cancelDelete" type="button">Keep</button>
+          </span>
+        </div>`;
+    }
 
     if (bookmark.id === this.editingId) {
       return `
@@ -601,8 +715,16 @@ export class BookmarkPanel {
   }
 
   render() {
-    const rows = this.items.length
-      ? this.items.map((bookmark) => this.renderRow(bookmark)).join('')
+    // The pending row is merged back in at its own timestamp, so the list stays
+    // in time order and the gap does not close until the undo window ends.
+    const entries = this.items.map((bookmark) => ({ time: bookmark.time, html: this.renderRow(bookmark) }));
+    if (this.pending) {
+      entries.push({ time: this.pending.bookmark.time, html: this.renderPendingRow() });
+      entries.sort((a, b) => a.time - b.time);
+    }
+
+    const rows = entries.length
+      ? entries.map((entry) => entry.html).join('')
       : `<div class="bm-empty">
            <p>No bookmarks yet.</p>
            <p class="bm-empty-hint">Press the bookmark key while watching to mark the moment you are on.</p>
