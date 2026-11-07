@@ -138,6 +138,32 @@ async function addBookmarkAt(win, seconds, label) {
   return true;
 }
 
+// Pauses, opens trim if needed and places both marks with the Set buttons.
+async function selectRange(win, from, to) {
+  await evaluate(win, `document.querySelector('video').pause()`);
+  if (!(await trimState(win)).barOpen) {
+    key(win, 'c');
+    await wait(500);
+  }
+  await evaluate(win, `document.querySelector('video').currentTime = ${from}`);
+  await wait(400);
+  await evaluate(win, `document.querySelector('[data-cmd="setIn"]').click()`);
+  await wait(300);
+  await evaluate(win, `document.querySelector('video').currentTime = ${to}`);
+  await wait(400);
+  await evaluate(win, `document.querySelector('[data-cmd="setOut"]').click()`);
+  await wait(400);
+}
+
+// Moves carry leftButtonDown so Chromium treats them as a drag with the
+// button held, the way a real pointer reports one.
+function mouse(win, type, x, y) {
+  const modifiers = type === 'mouseMove' ? ['leftButtonDown'] : [];
+  win.webContents.sendInputEvent({
+    type, x: Math.round(x), y: Math.round(y), button: 'left', clickCount: 1, modifiers,
+  });
+}
+
 app.whenReady().then(async () => {
   fs.mkdirSync(OUT_DIR, { recursive: true });
   await wait(2500);
@@ -215,6 +241,28 @@ app.whenReady().then(async () => {
     state.inSec < state.outSec && gap >= 0.09 && gap < 0.2 && state.inSec > 24,
     `${state.inSec.toFixed(3)}s → ${state.outSec.toFixed(3)}s (gap ${gap.toFixed(3)}s)`);
 
+  /* ---- 3b. dragging a handle shows the frame under it ---- */
+  await selectRange(win, 10, 25);
+  const grip = await rectOf(win, '.trim-grip[data-edge="in"]');
+  const hit = await rectOf(win, '.scrub-hit');
+  const xAt = (seconds) => hit.left + (seconds / 60) * hit.w;
+  mouse(win, 'mouseDown', grip.x, grip.y);
+  for (const seconds of [12, 14, 16, 18]) {
+    mouse(win, 'mouseMove', xAt(seconds), grip.y);
+    await wait(120);
+  }
+  await wait(400);
+  const midDrag = await evaluate(win, `document.querySelector('video').currentTime`);
+  check('the picture follows the handle while it is dragged',
+    Math.abs(midDrag - 18) < 0.6, `video at ${midDrag.toFixed(2)}s, handle at ~18s`);
+  await shot(win, '02b-trim-dragging');
+  mouse(win, 'mouseUp', xAt(18), grip.y);
+  await wait(500);
+  state = await trimState(win);
+  const settled = await evaluate(win, `document.querySelector('video').currentTime`);
+  check('letting go leaves the picture exactly on the mark',
+    Math.abs(settled - state.inSec) < 0.05, `video ${settled.toFixed(3)}s, mark ${state.inSec.toFixed(3)}s`);
+
   // Put a usable selection back.
   await evaluate(win, `document.querySelector('video').currentTime = 10`);
   await wait(300);
@@ -272,11 +320,24 @@ app.whenReady().then(async () => {
        const tr = t.getBoundingClientRect(); const br = b.getBoundingClientRect();
        return { clear: tr.bottom <= br.top + 1, toast: Math.round(tr.bottom), bar: Math.round(br.top) }; })()`,
   );
-  check('the toast sits clear of the trim bar', Boolean(stacking) && stacking.clear,
-    stacking ? `toast ends at ${stacking.toast}px, bar starts at ${stacking.bar}px` : 'nothing to measure');
+  // The bar closes once the clip is saved, so there is normally nothing for the
+  // toast to collide with; when it is still there, they must not overlap.
+  check('the toast sits clear of the trim bar', !stacking || stacking.clear,
+    stacking ? `toast ends at ${stacking.toast}px, bar starts at ${stacking.bar}px` : 'bar closed');
   await shot(win, '04-trim-done');
 
+  const after = await evaluate(
+    win,
+    `({ paused: document.querySelector('video').paused,
+        bar: !document.querySelector('.trimbar').hidden })`,
+  );
+  check('a finished export leaves trim mode', !after.bar);
+  check('and playback resumes', !after.paused);
+  const successIcon = await evaluate(win, `Boolean(document.querySelector('.toast.is-success .toast-icon'))`);
+  check('the finished export is announced as a success', successIcon);
+
   /* ---- 5. exact mode is frame accurate ---- */
+  await selectRange(win, 10, 25);
   await evaluate(win, `document.querySelector('.trim-modes .chip[data-mode="exact"]').click()`);
   await wait(400);
   state = await trimState(win);
@@ -288,8 +349,13 @@ app.whenReady().then(async () => {
   nextSavePath = exactOut;
   await evaluate(win, `document.querySelectorAll('.toast').forEach(n => n.remove()); true`);
   await evaluate(win, `document.querySelector('[data-cmd="export"]').click()`);
-  for (let i = 0; i < 90 && !fs.existsSync(exactOut); i += 1) await wait(500);
-  await wait(1500);
+  // Not the file appearing: ffmpeg creates it at the start of a re-encode and
+  // keeps writing for seconds after. The success message is the real finish.
+  for (let i = 0; i < 180; i += 1) {
+    if (await evaluate(win, `Boolean(document.querySelector('.toast.is-success'))`)) break;
+    await wait(500);
+  }
+  await wait(300);
 
   const exactSeconds = secondsOf(exactOut);
   check('the exact clip is cut to the frame',
@@ -304,6 +370,7 @@ app.whenReady().then(async () => {
     /Clip saved/.test(exactToast) && !/early/.test(exactToast), exactToast);
 
   /* ---- 6. cancelling the dialog cancels the export ---- */
+  await selectRange(win, 10, 25);
   nextSavePath = null;
   await evaluate(win, `document.querySelector('[data-cmd="export"]').click()`);
   await wait(1000);

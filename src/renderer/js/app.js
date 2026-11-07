@@ -76,8 +76,11 @@ const controls = new Controls(dom.controlsHost, {
 });
 
 const scrubber = new Scrubber(controls.scrubberHost, {
-  onSeek: (time) => {
-    player.seek(time);
+  // While the pointer is still down the seek is a preview — coalesced so the
+  // picture keeps up with the drag. Letting go lands an exact seek.
+  onSeek: (time, dragging) => {
+    if (dragging) player.scrubTo(time);
+    else player.seek(time);
     paintTime(true);
   },
   onScrubStart: () => {
@@ -90,9 +93,22 @@ const scrubber = new Scrubber(controls.scrubberHost, {
   onTrimStart: () => {
     suppressAutoHide = true;
   },
-  onTrimDrag: (edge, time) => moveTrimEdge(edge, time),
-  onTrimEnd: () => {
+  // Dragging a handle shows the frame under it. Choosing a cut point by its
+  // timestamp alone means guessing, then parking the playhead there to check;
+  // the picture following the handle is what makes the handle usable.
+  onTrimDrag: (edge, time) => {
+    moveTrimEdge(edge, time);
+    if (!trimRange) return;
+    if (!player.paused) player.pause();
+    player.scrubTo(trimRange[edge]);
+    paintTime(true);
+  },
+  onTrimEnd: (edge) => {
     suppressAutoHide = false;
+    if (trimRange && edge) {
+      player.seek(trimRange[edge]);
+      paintTime(true);
+    }
     wake();
   },
 });
@@ -613,8 +629,9 @@ async function exportClip() {
   const sourceExtension = (currentFile.name.match(/\.([^.]+)$/)?.[1] || 'mp4').toLowerCase();
   const extension = mode === 'exact' ? 'mp4' : sourceExtension;
 
+  const source = currentFile.path;
   const result = await globalThis.host?.exportClip({
-    input: currentFile.path,
+    input: source,
     start: trimRange.in,
     end: trimRange.out,
     mode,
@@ -622,7 +639,17 @@ async function exportClip() {
     suggestedName: suggestedClipName(),
   });
 
-  reportJobResult(result);
+  reportJobResult(result, {
+    // The cut is done, so the editing is too: leave trim mode and go back to
+    // watching. Only for the file the clip came from — if another one was
+    // opened while the export ran, it has its own state to keep.
+    onDone: () => {
+      if (currentFile?.path !== source) return;
+      activeJob = null;
+      closeTrim();
+      player.play();
+    },
+  });
 }
 
 async function convertCurrent() {
@@ -644,13 +671,14 @@ function reportJobResult(result, { onDone } = {}) {
   if (!result || result.status === 'canceled') return;
 
   if (result.status === 'error') {
-    toast(result.message || 'The export failed.', { duration: 8000 });
+    toast(result.message || 'The export failed.', { duration: 8000, tone: 'error' });
     return;
   }
   if (result.status !== 'done') return;
 
   toast(describeResult(result), {
-    duration: 8000,
+    duration: 6000,
+    tone: 'success',
     action: {
       label: 'Show file',
       onClick: () => globalThis.host?.revealFile(result.output),
@@ -926,7 +954,11 @@ function tick() {
     frameHandle = null;
     return;
   }
-  paintTime();
+  // With the chrome faded out there is nothing on screen to update; the
+  // scrubber is repainted the moment it wakes. Saving the position still
+  // happens either way.
+  if (dom.app.classList.contains('is-idle')) savePosition(false);
+  else paintTime();
   frameHandle = requestAnimationFrame(tick);
 }
 
@@ -973,8 +1005,19 @@ dom.openButton.addEventListener('click', () => openViaDialog());
 
 /* ---- auto-hide ---- */
 
+// Pointer movement fires this at the display rate. Re-arming a timer on every
+// one of those events is wasted work, so a burst inside 120ms re-arms once —
+// which moves the moment the chrome fades by at most that much.
+let lastWakeAt = 0;
+
 function wake() {
-  dom.app.classList.remove('is-idle');
+  const now = performance.now();
+  if (idleTimer && now - lastWakeAt < 120 && !dom.app.classList.contains('is-idle')) return;
+  lastWakeAt = now;
+  if (dom.app.classList.contains('is-idle')) {
+    dom.app.classList.remove('is-idle');
+    paintTime(true);
+  }
   if (idleTimer) clearTimeout(idleTimer);
   const delay = settings.get('hideControlsDelay');
   idleTimer = setTimeout(() => {
@@ -1034,9 +1077,20 @@ window.addEventListener('drop', async (event) => {
  * Feedback
  * ================================================================== */
 
-function toast(message, { duration = 2200, html = false, action = null } = {}) {
+const TOAST_ICONS = { success: 'check', error: 'close' };
+
+function toast(message, { duration = 2200, html = false, action = null, tone = null } = {}) {
   const node = document.createElement('div');
   node.className = 'toast';
+  node.setAttribute('role', tone === 'error' ? 'alert' : 'status');
+
+  if (TOAST_ICONS[tone]) {
+    node.classList.add(`is-${tone}`);
+    const badge = document.createElement('span');
+    badge.className = 'toast-icon';
+    badge.innerHTML = icon(TOAST_ICONS[tone]);
+    node.appendChild(badge);
+  }
 
   const body = document.createElement('span');
   if (html) body.innerHTML = message;

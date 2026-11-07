@@ -244,6 +244,7 @@ export class Scrubber {
       : null;
     this.root.classList.toggle('has-trim', Boolean(this.trim));
     this.trimEl.hidden = !this.trim;
+    this.trimKey = '';
     this.paintTrim();
   }
 
@@ -293,8 +294,10 @@ export class Scrubber {
       });
     }
 
+    this.hoverCleared = false;
     this.paintMarks();
     this.paint();
+    this.paintHover();
   }
 
   paintMarks() {
@@ -324,18 +327,48 @@ export class Scrubber {
       cell.buffered.style.transform = `scaleX(${fillOf(this.bufferedEnd, cell)})`;
     }
 
-    this.knobEl.style.left = `${played * 100}%`;
-    this.root.setAttribute('aria-valuenow', String(Math.floor(this.currentTime)));
-    this.root.setAttribute('aria-valuetext', formatTime(this.currentTime));
-    this.paintHover();
-    // Cheap enough to redo here: it exits immediately when trim is off, and
-    // keeping it on the paint path means a duration change can never leave the
-    // handles sitting at stale positions.
+    // A transform, not `left`: moving the knob then never triggers layout,
+    // only compositing, on every frame of playback.
+    this.knobEl.style.transform = `translateX(${played * this.trackWidth()}px)`;
+
+    // Screen readers need whole seconds; rewriting the attributes sixty times a
+    // second for the same second is pure waste.
+    const second = Math.floor(this.currentTime);
+    if (second !== this.lastAriaSecond) {
+      this.lastAriaSecond = second;
+      this.root.setAttribute('aria-valuenow', String(second));
+      this.root.setAttribute('aria-valuetext', formatTime(this.currentTime));
+    }
+    // Cheap enough to keep on the paint path: it exits immediately when trim is
+    // off or unchanged, and a duration change can never leave the handles
+    // sitting at stale positions.
     this.paintTrim();
   }
 
+  // Measured once and refreshed on resize, rather than read back from layout
+  // on every frame.
+  trackWidth() {
+    if (this.cachedWidth === undefined) {
+      this.cachedWidth = this.hitEl.getBoundingClientRect().width;
+      if (!this.resizeObserver && typeof ResizeObserver !== 'undefined') {
+        this.resizeObserver = new ResizeObserver(() => {
+          this.cachedWidth = undefined;
+          this.paint();
+        });
+        this.resizeObserver.observe(this.hitEl);
+      }
+    }
+    return this.cachedWidth || 0;
+  }
+
   paintTrim() {
-    if (!this.trim || !this.duration) return;
+    if (!this.trim || !this.duration) {
+      this.trimKey = '';
+      return;
+    }
+    const key = `${this.trim.in}|${this.trim.out}|${this.duration}`;
+    if (key === this.trimKey) return;
+    this.trimKey = key;
     const from = clamp(this.trim.in / this.duration, 0, 1) * 100;
     const to = clamp(this.trim.out / this.duration, 0, 1) * 100;
 
@@ -366,10 +399,13 @@ export class Scrubber {
     const ratio = this.hoverRatio;
 
     if (ratio === null) {
+      if (this.hoverCleared) return;
+      this.hoverCleared = true;
       for (const cell of this.cells) cell.hover.style.transform = 'scaleX(0)';
       this.tipEl.hidden = true;
       return;
     }
+    this.hoverCleared = false;
 
     const time = ratio * this.duration;
     for (const cell of this.cells) cell.hover.style.transform = `scaleX(${fillOf(time, cell)})`;
@@ -387,10 +423,10 @@ export class Scrubber {
     this.tipEl.hidden = false;
     // Keep the tooltip inside the bar's own width rather than letting it hang
     // off the window edge near 0:00 and the end.
-    const rect = this.hitEl.getBoundingClientRect();
+    const width = this.trackWidth();
     const tipWidth = this.tipEl.offsetWidth || 64;
-    const centre = ratio * rect.width;
-    const left = clamp(centre, tipWidth / 2 + 4, Math.max(tipWidth / 2 + 4, rect.width - tipWidth / 2 - 4));
+    const centre = ratio * width;
+    const left = clamp(centre, tipWidth / 2 + 4, Math.max(tipWidth / 2 + 4, width - tipWidth / 2 - 4));
     this.tipEl.style.left = `${left}px`;
   }
 

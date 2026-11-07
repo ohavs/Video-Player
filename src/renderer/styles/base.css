@@ -1,38 +1,103 @@
 /* Tokens, reset, app shell, welcome state, toasts. */
 
+/* Heebo: Roboto's proportions with a real Hebrew alphabet, so the interface
+   reads as one family in both languages. Bundled, never fetched — the CSP
+   allows fonts from 'self' only, and a player must look right offline. */
+@font-face {
+  font-family: 'Heebo';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url(../fonts/heebo-latin-wght-normal.woff2) format('woff2-variations');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308,
+    U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'Heebo';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url(../fonts/heebo-latin-ext-wght-normal.woff2) format('woff2-variations');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+1E00-1E9F,
+    U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+@font-face {
+  font-family: 'Heebo';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url(../fonts/heebo-hebrew-wght-normal.woff2) format('woff2-variations');
+  unicode-range: U+0307-0308, U+0590-05FF, U+200C-2010, U+20AA, U+25CC, U+FB1D-FB4F;
+}
+
+/* A Material-style dark scheme: tonal surfaces that step up in lightness as
+   they rise, one primary hue for "where you are in the video", and two
+   supporting hues that each own a single role. */
 :root {
-  --bg: #0f0f0f;
-  --surface: #212121;
-  --surface-2: #2f2f2f;
-  --surface-3: #3f3f3f;
-  --line: rgba(255, 255, 255, 0.12);
+  /* surfaces, lowest to highest */
+  --bg: #0d0f14;
+  --surface: #1a1c23;           /* menus, sheets, cards */
+  --surface-2: #242731;         /* containers inside a surface */
+  --surface-3: #2f323d;         /* the highest container, hovered rows */
+  --surface-scrim: rgba(8, 9, 12, 0.72);
+  --line: rgba(255, 255, 255, 0.09);
+  --outline: rgba(255, 255, 255, 0.18);
 
-  --text: #f1f1f1;
-  --text-dim: #aaaaaa;
-  --text-faint: #717171;
+  --text: #e7e8ef;
+  --text-dim: #b7bac8;
+  --text-faint: #838797;
 
-  --accent: #ff0000;          /* played time */
-  --mark: #ffd400;            /* bookmarks — must read against the accent */
-  --trim: #4ac9ff;            /* the clip selection — third role, third hue */
-  --trim-ink: #062430;        /* text on a filled --trim surface */
-  --track: rgba(255, 255, 255, 0.22);
-  --track-buffered: rgba(255, 255, 255, 0.42);
+  /* the three roles */
+  --primary: #9bb7ff;           /* played time, focus, primary actions */
+  --primary-ink: #0b2766;
+  --primary-container: #273d78;
+  --primary-on-container: #dce4ff;
+  --accent: #7d9fff;            /* the played bar: a touch deeper than --primary so it reads on bright frames */
+
+  --mark: #ffc163;              /* bookmarks */
+  --mark-ink: #3b2500;
+  --mark-rgb: 255 193 99;
+
+  --trim: #52dcc4;              /* the clip selection */
+  --trim-ink: #003a30;
+  --trim-rgb: 82 220 196;
+
+  --success: #6fdc8c;
+  --success-ink: #003916;
+  --danger: #ffb4ab;
+  --danger-strong: #e5484d;
+
+  /* state layers (Material's hover / press overlays) */
+  --hover: rgba(255, 255, 255, 0.08);
+  --press: rgba(255, 255, 255, 0.14);
+
+  --track: rgba(255, 255, 255, 0.24);
+  --track-buffered: rgba(255, 255, 255, 0.4);
   --track-hover: rgba(255, 255, 255, 0.55);
 
-  --control-h: 48px;
-  --scrub-h: 3px;
-  --scrub-h-hover: 5px;
-  --pad-x: 16px;
+  --control-h: 60px;
+  --scrub-h: 4px;
+  --scrub-h-hover: 7px;
+  --pad-x: 20px;
 
-  --radius: 12px;
-  --radius-sm: 8px;
-  --shadow: 0 8px 32px rgba(0, 0, 0, 0.55);
+  --radius-xs: 8px;
+  --radius-sm: 12px;
+  --radius: 16px;
+  --radius-lg: 24px;
+  --radius-xl: 28px;
 
-  --ease: cubic-bezier(0.2, 0, 0.2, 1);
+  --elev-1: 0 1px 3px rgba(0, 0, 0, 0.35), 0 1px 2px rgba(0, 0, 0, 0.25);
+  --elev-2: 0 4px 12px rgba(0, 0, 0, 0.38), 0 2px 4px rgba(0, 0, 0, 0.24);
+  --shadow: 0 12px 40px rgba(0, 0, 0, 0.5), 0 4px 12px rgba(0, 0, 0, 0.3);
 
-  --font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial,
-    "Noto Sans Hebrew", sans-serif;
-  --font-num: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+  /* Material's standard and emphasized easing */
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+  --ease-out: cubic-bezier(0.05, 0.7, 0.1, 1);
+
+  --font: 'Heebo', system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
+  --font-num: var(--font);
 }
 
 *,
@@ -59,8 +124,10 @@ body {
 
 body {
   font-family: var(--font);
+  font-size: 14px;
   color: var(--text);
   -webkit-font-smoothing: antialiased;
+  font-feature-settings: 'tnum' 0;
   user-select: none;
   cursor: default;
 }
@@ -72,6 +139,7 @@ button {
   border: 0;
   padding: 0;
   cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
 }
 
 h1, h2, h3, p {
@@ -81,10 +149,11 @@ h1, h2, h3, p {
 kbd {
   font-family: var(--font);
   font-size: 0.85em;
-  padding: 2px 6px;
-  border-radius: 5px;
-  background: var(--surface-2);
-  border: 1px solid var(--line);
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: var(--surface-3);
+  border: 1px solid var(--outline);
   border-bottom-width: 2px;
 }
 
@@ -94,9 +163,28 @@ kbd {
 }
 
 :focus-visible {
-  outline: 2px solid #fff;
+  outline: 2px solid var(--primary);
   outline-offset: 2px;
-  border-radius: 4px;
+  border-radius: 6px;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16) padding-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(255, 255, 255, 0.28);
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 /* ------------------------------------------------------------------ *
@@ -151,8 +239,12 @@ kbd {
   inset: 0;
   display: grid;
   place-items: center;
-  padding: 24px;
-  background: radial-gradient(120% 90% at 50% 0%, #1c1c1c 0%, var(--bg) 70%);
+  padding: 28px;
+  overflow-y: auto;
+  background:
+    radial-gradient(70% 55% at 50% 0%, rgba(125, 159, 255, 0.16) 0%, transparent 70%),
+    radial-gradient(50% 40% at 85% 100%, rgba(82, 220, 196, 0.07) 0%, transparent 70%),
+    var(--bg);
   z-index: 4;
 }
 
@@ -161,39 +253,71 @@ kbd {
 }
 
 .welcome-card {
-  width: min(520px, 100%);
+  width: min(560px, 100%);
+  padding: 40px 36px 22px;
+  border-radius: var(--radius-xl);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow);
   text-align: center;
+  animation: rise-in 0.4s var(--ease-out);
 }
 
+@keyframes rise-in {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* The app mark, drawn in CSS: a rounded tile with a play triangle. */
 .welcome-title {
-  font-size: 30px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  font-size: 32px;
   font-weight: 700;
   letter-spacing: -0.02em;
   margin-bottom: 10px;
 }
 
+.welcome-title::before {
+  content: '';
+  width: 64px;
+  height: 64px;
+  border-radius: 20px;
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M9 6.5v11l9-5.5z' fill='%230b2766'/%3E%3C/svg%3E") center / 36px no-repeat,
+    linear-gradient(135deg, #b9cbff 0%, var(--accent) 100%);
+  box-shadow: 0 8px 24px rgba(125, 159, 255, 0.35);
+}
+
 .welcome-sub {
   color: var(--text-dim);
-  font-size: 14px;
+  font-size: 15px;
   line-height: 1.6;
-  margin-bottom: 26px;
+  margin-bottom: 28px;
 }
 
 .btn-primary {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 11px 22px;
+  justify-content: center;
+  gap: 10px;
+  min-height: 52px;
+  padding: 0 32px;
   border-radius: 999px;
-  background: var(--text);
-  color: #0b0b0b;
-  font-size: 14px;
+  background: var(--primary);
+  color: var(--primary-ink);
+  font-size: 16px;
   font-weight: 600;
-  transition: transform 0.12s var(--ease), opacity 0.12s var(--ease);
+  letter-spacing: 0.01em;
+  box-shadow: var(--elev-1);
+  transition: box-shadow 0.2s var(--ease), transform 0.12s var(--ease), filter 0.2s var(--ease);
 }
 
 .btn-primary:hover {
-  opacity: 0.88;
+  box-shadow: var(--elev-2);
+  filter: brightness(1.06);
 }
 
 .btn-primary:active {
@@ -202,15 +326,15 @@ kbd {
 
 .welcome-drop {
   margin-top: 14px;
-  font-size: 12.5px;
+  font-size: 13px;
   color: var(--text-faint);
 }
 
 .recent {
-  margin-top: 34px;
+  margin-top: 32px;
   text-align: start;
+  padding-top: 20px;
   border-top: 1px solid var(--line);
-  padding-top: 18px;
 }
 
 /* ---- version and update state ---- */
@@ -221,10 +345,10 @@ kbd {
   justify-content: center;
   flex-wrap: wrap;
   gap: 6px 10px;
-  margin-top: 26px;
-  padding-top: 14px;
+  margin-top: 24px;
+  padding-top: 16px;
   border-top: 1px solid var(--line);
-  font-size: 12px;
+  font-size: 12.5px;
   color: var(--text-faint);
 }
 
@@ -249,7 +373,7 @@ kbd {
 }
 
 /* A waiting update is the one state worth pulling the eye, and it borrows the
-   same yellow the corner notice uses so the two read as one thing. */
+   same colour the corner notice uses so the two read as one thing. */
 .welcome-update[data-status="ready"] .welcome-update-text {
   color: var(--mark);
   font-weight: 600;
@@ -260,26 +384,25 @@ kbd {
 }
 
 .welcome-update-link {
-  padding: 3px 8px;
+  padding: 5px 12px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.08);
-  font-size: 11.5px;
+  border: 1px solid var(--outline);
+  font-size: 12px;
   font-weight: 600;
-  color: var(--text-dim);
-  transition: background 0.12s var(--ease), color 0.12s var(--ease);
+  color: var(--primary);
+  transition: background 0.15s var(--ease);
 }
 
 .welcome-update-link:hover {
-  background: rgba(255, 255, 255, 0.16);
-  color: var(--text);
+  background: rgba(155, 183, 255, 0.1);
 }
 
 .welcome-update-go {
-  padding: 5px 12px;
+  padding: 6px 14px;
   border-radius: 999px;
   background: var(--mark);
-  color: #241d00;
-  font-size: 11.5px;
+  color: var(--mark-ink);
+  font-size: 12px;
   font-weight: 700;
 }
 
@@ -292,41 +415,39 @@ kbd {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
+  padding-inline: 4px;
 }
 
 .recent-title {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
-  color: var(--text-faint);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-dim);
 }
 
 .recent-clear {
-  padding: 3px 9px;
+  padding: 6px 12px;
   border-radius: 999px;
-  font-size: 11.5px;
+  font-size: 12.5px;
   font-weight: 600;
-  color: var(--text-faint);
-  transition: background 0.12s var(--ease), color 0.12s var(--ease);
+  color: var(--primary);
+  transition: background 0.15s var(--ease), color 0.15s var(--ease);
 }
 
 .recent-clear:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: var(--text);
+  background: rgba(155, 183, 255, 0.1);
 }
 
 .recent-clear[data-armed="true"] {
-  background: rgba(255, 212, 0, 0.16);
+  background: rgb(var(--mark-rgb) / 0.16);
   color: var(--mark);
 }
 
 .recent-list {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  max-height: 190px;
+  gap: 4px;
+  max-height: 232px;
   overflow-y: auto;
 }
 
@@ -334,11 +455,12 @@ kbd {
   display: flex;
   align-items: center;
   border-radius: var(--radius-sm);
-  transition: background 0.12s var(--ease);
+  background: var(--surface-2);
+  transition: background 0.15s var(--ease);
 }
 
 .recent-row:hover {
-  background: var(--surface-2);
+  background: var(--surface-3);
 }
 
 .recent-open {
@@ -347,18 +469,19 @@ kbd {
   gap: 12px;
   flex: 1;
   min-width: 0;
-  padding: 9px 4px 9px 12px;
+  min-height: 52px;
+  padding: 10px 6px 10px 16px;
   text-align: start;
   color: inherit;
 }
 
 .recent-forget {
   flex: none;
-  width: 28px;
-  height: 28px;
-  margin-inline-end: 6px;
+  width: 36px;
+  height: 36px;
+  margin-inline-end: 8px;
   opacity: 0;
-  transition: opacity 0.12s var(--ease), background 0.12s var(--ease), color 0.12s var(--ease);
+  transition: opacity 0.15s var(--ease), background 0.15s var(--ease), color 0.15s var(--ease);
 }
 
 /* Kept reachable by keyboard even while invisible to the mouse. */
@@ -368,14 +491,15 @@ kbd {
 }
 
 .recent-forget .icon {
-  width: 13px;
-  height: 13px;
+  width: 16px;
+  height: 16px;
 }
 
 .recent-name {
   flex: 1;
   min-width: 0;
-  font-size: 13.5px;
+  font-size: 14.5px;
+  font-weight: 500;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -383,7 +507,7 @@ kbd {
 
 .recent-meta {
   flex: none;
-  font-size: 11.5px;
+  font-size: 12.5px;
   color: var(--text-faint);
   font-variant-numeric: tabular-nums;
 }
@@ -393,84 +517,124 @@ kbd {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-size: 11px;
-  font-weight: 600;
-  color: #241d00;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--mark-ink);
   background: var(--mark);
-  padding: 2px 7px;
+  padding: 3px 9px;
   border-radius: 999px;
 }
 
 /* ------------------------------------------------------------------ *
- * Toasts
+ * Snackbars
  * ------------------------------------------------------------------ */
 
 /* --stack-lift is set from the real height of the trim bar when it is open, so
-   a toast never lands on top of it. Zero the rest of the time. */
+   a snackbar never lands on top of it. Zero the rest of the time. */
 .toasts {
   position: absolute;
   left: 50%;
-  bottom: calc(var(--control-h) + 44px + var(--stack-lift, 0px));
+  bottom: calc(var(--control-h) + 52px + var(--stack-lift, 0px));
   transform: translateX(-50%);
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
+  max-width: calc(100% - 32px);
   z-index: 8;
   pointer-events: none;
 }
 
+/* Opaque rather than blurred: a backdrop blur over playing video has to be
+   recomputed on every frame, which is the single most expensive thing a
+   player's chrome can do. */
 .toast {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 9px 16px;
-  border-radius: 999px;
-  background: rgba(0, 0, 0, 0.82);
-  backdrop-filter: blur(6px);
-  font-size: 13px;
+  min-height: 48px;
+  max-width: 100%;
+  padding: 10px 20px;
+  border-radius: var(--radius-sm);
+  background: #e7e8ef;
+  color: #1a1c23;
+  box-shadow: var(--shadow);
+  font-size: 14px;
   font-weight: 500;
-  white-space: nowrap;
-  animation: toast-in 0.18s var(--ease);
+  line-height: 1.35;
+  animation: toast-in 0.28s var(--ease-out);
 }
 
-/* The container is click-through so toasts never block the video; a toast
+.toast > span:not(.toast-icon) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.toast-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  margin-inline-start: -6px;
+  border-radius: 50%;
+}
+
+.toast-icon .icon {
+  width: 18px;
+  height: 18px;
+}
+
+.toast.is-success .toast-icon {
+  background: var(--success);
+  color: var(--success-ink);
+}
+
+.toast.is-error .toast-icon {
+  background: var(--danger-strong);
+  color: #fff;
+}
+
+/* The container is click-through so snackbars never block the video; one
    carrying an action takes its own clicks back. */
 .toast.is-actionable {
   pointer-events: auto;
-  padding-right: 6px;
+  padding-inline-end: 8px;
 }
 
 .toast-action {
-  padding: 5px 12px;
+  flex: none;
+  min-height: 36px;
+  padding: 0 14px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.14);
-  font-size: 12.5px;
+  font-size: 14px;
   font-weight: 700;
-  color: var(--mark);
-  transition: background 0.12s var(--ease);
+  color: #2a4fbf;
+  transition: background 0.15s var(--ease);
 }
 
 .toast-action:hover {
-  background: rgba(255, 255, 255, 0.24);
+  background: rgba(42, 79, 191, 0.1);
 }
 
 .toast.is-out {
-  animation: toast-out 0.22s var(--ease) forwards;
+  animation: toast-out 0.2s var(--ease) forwards;
 }
 
 .toast strong {
-  color: var(--mark);
-  font-weight: 600;
+  color: #2a4fbf;
+  font-weight: 700;
 }
 
 @keyframes toast-in {
-  from { opacity: 0; transform: translateY(8px); }
+  from { opacity: 0; transform: translateY(12px) scale(0.96); }
   to   { opacity: 1; transform: none; }
 }
 
 @keyframes toast-out {
-  to { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 0; transform: translateY(-6px) scale(0.98); }
 }
 
 /* ------------------------------------------------------------------ *
@@ -481,11 +645,11 @@ kbd {
   position: absolute;
   top: 50%;
   left: 50%;
-  width: 74px;
-  height: 74px;
-  margin: -37px 0 0 -37px;
+  width: 88px;
+  height: 88px;
+  margin: -44px 0 0 -44px;
   border-radius: 50%;
-  background: rgba(0, 0, 0, 0.65);
+  background: rgba(13, 15, 20, 0.7);
   display: grid;
   place-items: center;
   opacity: 0;
@@ -495,12 +659,12 @@ kbd {
 }
 
 .pulse.is-active {
-  animation: pulse-fade 0.5s var(--ease);
+  animation: pulse-fade 0.55s var(--ease);
 }
 
 .pulse .icon {
-  width: 34px;
-  height: 34px;
+  width: 40px;
+  height: 40px;
 }
 
 @keyframes pulse-fade {
@@ -514,12 +678,14 @@ kbd {
 
 .drop-veil {
   position: absolute;
-  inset: 0;
+  inset: 12px;
   display: none;
   place-items: center;
-  background: rgba(10, 10, 10, 0.86);
-  border: 2px dashed rgba(255, 255, 255, 0.4);
-  font-size: 16px;
+  border-radius: var(--radius-lg);
+  background: rgba(13, 15, 20, 0.88);
+  border: 2px dashed var(--primary);
+  color: var(--primary);
+  font-size: 20px;
   font-weight: 600;
   z-index: 20;
   pointer-events: none;
@@ -548,4 +714,13 @@ kbd {
 [dir="rtl"] .sheet-row-label {
   direction: rtl;
   text-align: start;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }

@@ -22,6 +22,11 @@ export class Player {
     this.origin = 0;
     this.span = 0;
 
+    // Live-preview seeking. See scrubTo().
+    this.scrubTarget = null;
+    this.scrubInFlight = false;
+    this.scrubGuard = null;
+
     // 'metadata', not 'auto'. Duration and dimensions still arrive immediately,
     // but Chromium no longer tries to pull the whole file up front — on a
     // multi-gigabyte recording that read is what makes opening feel frozen.
@@ -73,6 +78,7 @@ export class Player {
     this.fpsSamples = [];
     this.origin = 0;
     this.span = 0;
+    this.cancelScrub();
     this.el.src = file.url;
     this.el.load();
     this.measureFrameRate();
@@ -93,6 +99,9 @@ export class Player {
 
   get currentTime() {
     if (this.span <= 0) return 0;
+    // While a preview seek is queued, the UI should follow where the pointer
+    // is, not where the decoder has got to.
+    if (this.scrubTarget !== null) return this.scrubTarget;
     return clamp((this.el.currentTime || 0) - this.origin, 0, this.span);
   }
 
@@ -120,7 +129,51 @@ export class Player {
 
   seek(time) {
     if (this.span <= 0) return;
+    this.cancelScrub();
     this.el.currentTime = this.origin + clamp(time, 0, Math.max(0, this.span - 0.02));
+  }
+
+  // Live preview while something is being dragged: the scrubber, or a trim
+  // handle. Assigning currentTime on every pointermove queues seeks faster
+  // than the decoder can finish them, so the picture falls behind the pointer
+  // and then plays catch-up through every stale position. Here at most one
+  // seek is in flight; newer targets replace the waiting one and the latest is
+  // applied the moment the current seek lands. The picture therefore tracks
+  // the pointer as closely as the file allows, and always ends on the last
+  // position asked for.
+  scrubTo(time) {
+    if (this.span <= 0) return;
+    this.scrubTarget = clamp(time, 0, Math.max(0, this.span - 0.02));
+    if (!this.scrubInFlight) this.flushScrub();
+  }
+
+  flushScrub() {
+    clearTimeout(this.scrubGuard);
+    if (this.scrubTarget === null) {
+      this.scrubInFlight = false;
+      return;
+    }
+    const target = this.scrubTarget;
+    this.scrubInFlight = true;
+    this.el.addEventListener('seeked', this.onScrubSeeked, { once: true });
+    // A seek to where the decoder already is may never report back; never let
+    // one lost event freeze the preview.
+    this.scrubGuard = setTimeout(this.onScrubSeeked, 300);
+    this.el.currentTime = this.origin + target;
+    // Settled unless something newer arrives before this seek lands.
+    if (this.scrubTarget === target) this.scrubTarget = null;
+  }
+
+  onScrubSeeked = () => {
+    this.el.removeEventListener('seeked', this.onScrubSeeked);
+    this.flushScrub();
+  };
+
+  cancelScrub() {
+    clearTimeout(this.scrubGuard);
+    this.el.removeEventListener('seeked', this.onScrubSeeked);
+    this.scrubTarget = null;
+    this.scrubInFlight = false;
   }
 
   seekBy(delta) {

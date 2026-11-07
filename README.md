@@ -165,7 +165,9 @@ had already saved. Both are rebindable if you want them bare.
   everything outside them dims: what stays lit is what you get.
 - If you open trim while inside a bookmark chapter, that chapter is already selected. Mark the
   moment while watching, then cut it without hunting for it twice.
-- Drag the handles, or press **Set** to move a mark to the playhead
+- Drag the handles and the picture follows: the video shows the exact frame under the handle
+  while you drag, and lands on it precisely when you let go — no parking the playhead there to
+  check. Or press **Set** to move a mark to the playhead
   (<kbd>Shift</kbd>+<kbd>I</kbd> / <kbd>Shift</kbd>+<kbd>O</kbd>). Arrow keys nudge a focused
   handle; hold <kbd>Shift</kbd> for a coarser step.
 - Two modes:
@@ -178,6 +180,8 @@ had already saved. Both are rebindable if you want them bare.
   second, sometimes several. So the result is measured off the finished file and reported:
   *Clip saved · 539 KB · starts 2.0s early (nearest keyframe)*. An exact cut has nothing to
   report and says nothing. Pick Fast unless that number matters to you.
+- When the export finishes, a confirmation appears (with **Show file**), trim mode closes and
+  playback resumes — the edit is done, so the player goes back to playing.
 - A clip taken from a titled chapter is offered that title as its filename.
 
 **Stepping through a folder** — open one video and the others beside it are one click away.
@@ -195,6 +199,19 @@ had already saved. Both are rebindable if you want them bare.
 **Opening files** — file dialog, drag and drop anywhere in the window, "Open with" from the OS,
 or the recent list on the welcome screen (which shows how many bookmarks each file has).
 Playback position is remembered per file.
+
+## Look and feel
+
+A Material-style dark theme: tonal surfaces, large touch-sized controls (48px icon buttons, a
+filled play button), and three hues that each own one role — blue for where you are in the video,
+amber for bookmarks, teal for the clip selection. The typeface is **Heebo**, bundled under
+`src/renderer/fonts` (SIL Open Font License) so it works offline and renders Hebrew and Latin as
+one family.
+
+Kept fast on purpose: no `backdrop-filter` blur anywhere over the video (it is recomputed every
+frame), the playhead moves by `transform` rather than layout, the frame loop skips painting
+while the controls are faded out, and drag-seeking keeps at most one seek in flight so the
+picture keeps up with the pointer instead of queuing stale frames.
 
 ## Codec support
 

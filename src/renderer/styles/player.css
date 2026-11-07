@@ -1,4 +1,4 @@
-/* Player chrome: top bar, control row, scrubber, bookmark composer. */
+/* Player chrome: top bar, control row, scrubber, bookmark composer, trim bar. */
 
 .chrome {
   position: absolute;
@@ -6,7 +6,7 @@
   z-index: 6;
   pointer-events: none;
   opacity: 1;
-  transition: opacity 0.2s var(--ease);
+  transition: opacity 0.25s var(--ease);
 }
 
 /* Everything inside the chrome is click-through except the actual widgets. */
@@ -29,20 +29,21 @@
   left: 0;
   right: 0;
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 12px;
-  padding: 14px 18px 40px;
-  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.7), transparent);
+  padding: 18px 24px 48px;
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.72), rgba(0, 0, 0, 0.32) 55%, transparent);
   pointer-events: none;
 }
 
 .topbar-title {
   flex: 1;
   min-width: 0;
-  font-size: 14px;
-  font-weight: 500;
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: 0.005em;
   color: #fff;
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.55);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -52,10 +53,13 @@
 /* "3 / 12" — the answer to "am I in a folder, and where in it?" */
 .topbar-count {
   flex: none;
-  font-size: 12px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+  font-size: 13px;
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
-  color: rgba(255, 255, 255, 0.7);
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+  color: #fff;
 }
 
 /* ------------------------------------------------------------------ *
@@ -69,21 +73,20 @@
   position: absolute;
   top: 50%;
   /* Offset by margin, not transform — :active wants the transform. */
-  margin-top: -23px;
+  margin-top: -28px;
   display: grid;
   place-items: center;
-  width: 46px;
-  height: 46px;
+  width: 56px;
+  height: 56px;
   border-radius: 50%;
-  background: rgba(0, 0, 0, 0.5);
+  background: rgba(20, 22, 28, 0.62);
   color: #fff;
-  opacity: 0.85;
-  transition: background 0.12s var(--ease), opacity 0.12s var(--ease), transform 0.1s var(--ease);
+  box-shadow: var(--elev-1);
+  transition: background 0.15s var(--ease), transform 0.12s var(--ease);
 }
 
 .stage-nav:hover {
-  background: rgba(0, 0, 0, 0.74);
-  opacity: 1;
+  background: rgba(20, 22, 28, 0.86);
 }
 
 .stage-nav:active {
@@ -91,16 +94,16 @@
 }
 
 .stage-nav .icon {
-  width: 26px;
-  height: 26px;
+  width: 28px;
+  height: 28px;
 }
 
 .stage-nav-prev {
-  left: 16px;
+  left: 20px;
 }
 
 .stage-nav-next {
-  right: 16px;
+  right: 20px;
 }
 
 .chrome-bottom {
@@ -108,8 +111,8 @@
   left: 0;
   right: 0;
   bottom: 0;
-  padding-top: 60px;
-  background: linear-gradient(to top, rgba(0, 0, 0, 0.78) 0%, rgba(0, 0, 0, 0.42) 46%, transparent 100%);
+  padding-top: 80px;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.82) 0%, rgba(0, 0, 0, 0.5) 45%, transparent 100%);
 }
 
 /* ------------------------------------------------------------------ *
@@ -118,7 +121,7 @@
 
 .controls {
   position: relative;
-  padding: 0 var(--pad-x) 6px;
+  padding: 0 calc(var(--pad-x) - 8px) 10px;
 }
 
 .control-row {
@@ -132,33 +135,38 @@
 .control-group {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: 4px;
   min-width: 0;
 }
 
 .control-right {
-  gap: 2px;
+  gap: 4px;
 }
 
+/* Material icon buttons: a 48px target with a circular state layer. */
 .cbtn {
   position: relative;
   display: grid;
   place-items: center;
-  width: 40px;
-  height: 40px;
+  width: 48px;
+  height: 48px;
   border-radius: 50%;
   color: #fff;
-  opacity: 0.92;
-  transition: background 0.12s var(--ease), opacity 0.12s var(--ease), transform 0.1s var(--ease);
+  transition: background 0.15s var(--ease), color 0.15s var(--ease), transform 0.1s var(--ease);
+}
+
+.cbtn .icon {
+  width: 26px;
+  height: 26px;
 }
 
 .cbtn:hover {
-  background: rgba(255, 255, 255, 0.14);
-  opacity: 1;
+  background: rgba(255, 255, 255, 0.12);
 }
 
 .cbtn:active {
   transform: scale(0.92);
+  background: rgba(255, 255, 255, 0.18);
 }
 
 .cbtn:disabled {
@@ -178,20 +186,41 @@
   color: var(--mark);
 }
 
+/* Play is the one action that matters most, so it is the one filled button:
+   a tonal disc that stands apart from the rest of the row. */
+.cbtn[data-role="play"] {
+  width: 56px;
+  height: 56px;
+  margin-inline: 4px;
+  background: #fff;
+  color: #0d0f14;
+  box-shadow: var(--elev-1);
+}
+
+.cbtn[data-role="play"] .icon {
+  width: 30px;
+  height: 30px;
+}
+
+.cbtn[data-role="play"]:hover {
+  background: #e3e8ff;
+}
+
 .cbtn-count {
   position: absolute;
-  top: 3px;
-  right: 3px;
-  min-width: 16px;
-  height: 16px;
-  padding: 0 4px;
+  top: 4px;
+  right: 2px;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
   border-radius: 999px;
   background: var(--mark);
-  color: #241d00;
-  font-size: 10px;
+  color: var(--mark-ink);
+  font-size: 11px;
   font-weight: 700;
-  line-height: 16px;
+  line-height: 20px;
   text-align: center;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.5);
 }
 
 /* Volume: the slider unrolls on hover, as it does in most players. */
@@ -203,41 +232,45 @@
 .volume-slot {
   width: 0;
   overflow: hidden;
-  transition: width 0.18s var(--ease), margin 0.18s var(--ease);
+  transition: width 0.2s var(--ease), margin 0.2s var(--ease);
 }
 
 .volume:hover .volume-slot,
 .volume:focus-within .volume-slot {
-  width: 76px;
-  margin-inline: 4px 8px;
+  width: 96px;
+  margin-inline: 4px 10px;
 }
 
 .volume-range {
   --filled: 100%;
   -webkit-appearance: none;
   appearance: none;
-  width: 76px;
-  height: 3px;
-  border-radius: 2px;
-  background: linear-gradient(to right, #fff 0 var(--filled), rgba(255, 255, 255, 0.3) var(--filled) 100%);
+  display: block;
+  width: 96px;
+  height: 4px;
+  margin: 10px 0;
+  border-radius: 999px;
+  background: linear-gradient(to right, #fff 0 var(--filled), rgba(255, 255, 255, 0.28) var(--filled) 100%);
   cursor: pointer;
 }
 
 .volume-range::-webkit-slider-thumb {
   -webkit-appearance: none;
-  width: 12px;
-  height: 12px;
+  width: 16px;
+  height: 16px;
   border-radius: 50%;
   background: #fff;
+  box-shadow: var(--elev-1);
   cursor: pointer;
 }
 
 .time {
   display: flex;
   align-items: center;
-  gap: 5px;
-  padding: 0 8px;
-  font-size: 13px;
+  gap: 6px;
+  padding: 0 12px;
+  font-size: 15px;
+  font-weight: 500;
   font-variant-numeric: tabular-nums;
   color: #fff;
   white-space: nowrap;
@@ -245,22 +278,25 @@
 
 .time-duration,
 .time-sep {
-  color: rgba(255, 255, 255, 0.72);
+  color: rgba(255, 255, 255, 0.66);
 }
 
 .chapter {
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 8px;
   min-width: 0;
-  padding-inline-start: 4px;
-  font-size: 13px;
-  color: rgba(255, 255, 255, 0.82);
+  padding: 6px 14px 6px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  font-size: 14px;
+  font-weight: 500;
+  color: #fff;
 }
 
 .chapter-dot {
-  width: 5px;
-  height: 5px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
   background: var(--mark);
   flex: none;
@@ -270,48 +306,52 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: 34ch;
+  max-width: 30ch;
 }
 
 /* The skip settings sit beside the transport, so they are deliberately quieter
    than the buttons they belong to — present, but never competing with play. */
 .cbtn-tiny {
-  width: 28px;
-  height: 28px;
-  opacity: 0.5;
+  width: 32px;
+  height: 32px;
+  opacity: 0.6;
 }
 
 .cbtn-tiny .icon {
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
 }
 
 .cbtn-tiny:hover {
-  opacity: 0.95;
+  opacity: 1;
 }
 
 /* Speed reads as a value, not a glyph, so it is a pill wide enough for "1.75×"
    and fixed in width — the bar must not shuffle every time the rate changes. */
 .cbtn-rate {
   width: auto;
-  min-width: 46px;
-  padding: 0 10px;
+  min-width: 60px;
+  height: 40px;
+  padding: 0 14px;
   border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
 }
 
 .rate-text {
-  font-size: 12.5px;
+  font-size: 14px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
 
 .cbtn-rate.is-active {
-  background: rgba(255, 255, 255, 0.18);
-  color: var(--mark);
+  border-color: transparent;
+  background: var(--mark);
+  color: var(--mark-ink);
 }
 
 .cbtn-rate.is-active:hover {
-  background: rgba(255, 255, 255, 0.26);
+  background: var(--mark);
+  filter: brightness(1.06);
 }
 
 /* ------------------------------------------------------------------ *
@@ -319,12 +359,12 @@
  * ------------------------------------------------------------------ */
 
 .scrubber-host {
-  padding: 0 var(--pad-x);
+  padding: 0 8px;
 }
 
 .scrubber {
   position: relative;
-  height: 16px;              /* generous hit area around a thin bar */
+  height: 24px;              /* generous hit area around a thin bar */
   display: flex;
   align-items: center;
   cursor: pointer;
@@ -343,10 +383,10 @@
   position: relative;
   display: flex;
   align-items: stretch;
-  gap: 2px;                  /* the chapter break */
+  gap: 3px;                  /* the chapter break */
   width: 100%;
   height: var(--scrub-h);
-  transition: height 0.12s var(--ease);
+  transition: height 0.15s var(--ease);
 }
 
 .scrubber.is-hover .scrub-track,
@@ -363,8 +403,17 @@
   position: relative;
   flex: 1 1 auto;
   min-width: 1px;
+  border-radius: 999px;
   background: var(--track);
   overflow: hidden;
+  /* Its own compositing layer: the fills inside change every frame, and this
+     keeps that repaint from spreading to the rest of the bar. */
+  contain: paint;
+}
+
+.scrubber[data-mode="points"] .seg,
+.scrub-track > .seg:only-child {
+  border-radius: 999px;
 }
 
 .seg-buffered,
@@ -389,12 +438,6 @@
   background: var(--accent);
 }
 
-/* Only the played fill animates, and only when not dragging — a transition on
-   the hover fill would lag the cursor. */
-.scrubber:not(.is-scrubbing) .seg-played {
-  transition: transform 0.08s linear;
-}
-
 .scrub-marks {
   position: absolute;
   inset: 0;
@@ -404,43 +447,79 @@
 .scrub-mark {
   position: absolute;
   top: 50%;
-  width: 3px;
-  height: 11px;
-  margin-top: -5.5px;
-  margin-left: -1.5px;
-  border-radius: 1px;
+  width: 4px;
+  height: 14px;
+  margin-top: -7px;
+  margin-left: -2px;
+  border-radius: 2px;
   background: var(--mark);
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.45);
-  transition: transform 0.12s var(--ease);
+  box-shadow: 0 0 0 1.5px rgba(0, 0, 0, 0.5);
+  transition: transform 0.15s var(--ease);
 }
 
 .scrubber.is-hover .scrub-mark {
-  transform: scaleY(1.2);
+  transform: scaleY(1.25);
 }
 
+/* Positioned by transform from script so the playhead never causes layout.
+   The dot itself is drawn by the pseudo-element so its show/hide scale does
+   not fight the translate. */
 .scrub-knob {
   position: absolute;
   top: 50%;
-  width: 13px;
-  height: 13px;
-  margin: -6.5px 0 0 -6.5px;
-  border-radius: 50%;
-  background: var(--accent);
-  transform: scale(0);
-  transition: transform 0.12s var(--ease);
+  left: 0;
+  width: 0;
+  height: 0;
   pointer-events: none;
+  will-change: transform;
+  z-index: 1;
 }
 
-.scrubber.is-hover .scrub-knob,
-.scrubber.is-scrubbing .scrub-knob,
-.scrubber:focus-visible .scrub-knob {
+.scrub-knob::after {
+  content: '';
+  position: absolute;
+  top: -9px;
+  left: -9px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 4px rgba(125, 159, 255, 0.25), var(--elev-1);
+  transform: scale(0);
+  transition: transform 0.15s var(--ease);
+}
+
+.scrubber.is-hover .scrub-knob::after,
+.scrubber.is-scrubbing .scrub-knob::after,
+.scrubber:focus-visible .scrub-knob::after,
+.scrubber.has-trim .scrub-knob::after {
   transform: scale(1);
 }
 
+/* While trimming the playhead is what the picture shows, so it stays visible
+   and reads as a thin needle between the handles rather than a dot. */
+.scrubber.has-trim .scrub-knob::after {
+  top: -12px;
+  left: -1.5px;
+  width: 3px;
+  height: 24px;
+  border-radius: 2px;
+  background: #fff;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.6);
+}
+
 /* ---- clip selection ---- *
- * Drawn over the full height of the hit area rather than over the 3px bar: at
+ * Drawn over the full height of the hit area rather than over the thin bar: at
  * bar height the handles would be too small to grab and the dimming would read
  * as a rendering fault rather than as "this part is cut away". */
+
+.scrubber.has-trim {
+  height: 40px;
+}
+
+.scrubber.has-trim .scrub-track {
+  height: 10px;
+}
 
 .scrub-trim {
   position: absolute;
@@ -451,42 +530,58 @@
 
 .trim-shade {
   position: absolute;
-  top: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.58);
+  top: 6px;
+  bottom: 6px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.62);
 }
 
 .trim-band {
   position: absolute;
-  top: 1px;
-  bottom: 1px;
-  border: 2px solid var(--trim);
-  border-radius: 3px;
-  background: rgba(74, 201, 255, 0.13);
+  top: 2px;
+  bottom: 2px;
+  border: 3px solid var(--trim);
+  border-radius: 10px;
+  background: rgb(var(--trim-rgb) / 0.14);
 }
 
+/* A Material-style handle: a pill with a grip line, wide enough to grab
+   without hunting for it. */
 .trim-grip {
   position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 5px;
-  margin-left: -2.5px;
-  border-radius: 3px;
+  top: -2px;
+  bottom: -2px;
+  width: 14px;
+  margin-left: -7px;
+  border-radius: 7px;
   background: var(--trim);
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.55);
+  box-shadow: var(--elev-2);
   pointer-events: auto;
   cursor: ew-resize;
   touch-action: none;
-  transition: transform 0.12s var(--ease);
+  transition: transform 0.15s var(--ease), box-shadow 0.15s var(--ease);
 }
 
-/* The visible grip stays slim; this is the part the pointer actually has to
-   hit, which is much more forgiving than 5px. */
+.trim-grip::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 2px;
+  height: 14px;
+  margin: -7px 0 0 -1px;
+  border-radius: 1px;
+  background: var(--trim-ink);
+  opacity: 0.6;
+}
+
+/* The visible grip is already comfortable; this widens what the pointer has
+   to hit a little further. */
 .trim-grip::before {
   content: '';
   position: absolute;
-  top: -5px;
-  bottom: -5px;
+  top: -6px;
+  bottom: -6px;
   left: -8px;
   right: -8px;
 }
@@ -494,38 +589,45 @@
 .trim-grip:hover,
 .trim-grip:focus-visible,
 .scrubber.is-trimming .trim-grip {
-  transform: scaleX(1.5);
+  transform: scale(1.12);
+  box-shadow: 0 0 0 6px rgb(var(--trim-rgb) / 0.25), var(--elev-2);
 }
 
 .scrub-tip {
   position: absolute;
-  bottom: 22px;
+  bottom: 30px;
   transform: translateX(-50%);
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 3px;
-  padding: 6px 9px;
-  border-radius: var(--radius-sm);
-  background: rgba(0, 0, 0, 0.9);
+  gap: 2px;
+  padding: 8px 12px;
+  border-radius: var(--radius-xs);
+  background: #e7e8ef;
+  color: #1a1c23;
+  box-shadow: var(--elev-2);
   pointer-events: none;
   white-space: nowrap;
   z-index: 3;
 }
 
+.scrubber.has-trim .scrub-tip {
+  bottom: 44px;
+}
+
 .tip-title {
-  font-size: 12px;
-  font-weight: 600;
-  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
   max-width: 30ch;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .tip-time {
-  font-size: 12px;
+  font-size: 13px;
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
-  color: rgba(255, 255, 255, 0.78);
+  color: #454856;
 }
 
 /* ------------------------------------------------------------------ *
@@ -536,7 +638,7 @@
   position: absolute;
   left: var(--pad-x);
   right: var(--pad-x);
-  bottom: calc(var(--control-h) + 6px);
+  bottom: calc(var(--control-h) + 12px);
   height: 0;
   z-index: 5;
   pointer-events: none;
@@ -545,15 +647,16 @@
 .barpop {
   position: absolute;
   bottom: 0;
-  padding: 9px;
-  border-radius: var(--radius);
+  padding: 14px;
+  border-radius: var(--radius-lg);
   background: var(--surface);
   border: 1px solid var(--line);
   box-shadow: var(--shadow);
   pointer-events: auto;
   opacity: 0;
-  transform: translateY(5px);
-  transition: opacity 0.12s var(--ease), transform 0.12s var(--ease);
+  transform: translateY(8px) scale(0.98);
+  transform-origin: bottom center;
+  transition: opacity 0.18s var(--ease), transform 0.22s var(--ease-out);
 }
 
 .barpop.is-open {
@@ -562,69 +665,70 @@
 }
 
 .barpop-title {
-  margin-bottom: 7px;
-  padding-inline-start: 2px;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.07em;
-  text-transform: uppercase;
-  color: var(--text-faint);
+  margin-bottom: 10px;
+  padding-inline-start: 4px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
 }
 
 /* Five across: ten speeds land as two tidy rows, and the skip presets as one. */
 .barpop-grid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(46px, 1fr));
-  gap: 4px;
+  grid-template-columns: repeat(5, minmax(56px, 1fr));
+  gap: 6px;
 }
 
 .barpop-item {
-  padding: 7px 6px;
-  border-radius: var(--radius-sm);
-  background: rgba(255, 255, 255, 0.08);
-  font-size: 12px;
+  min-height: 40px;
+  padding: 0 8px;
+  border-radius: var(--radius-xs);
+  border: 1px solid var(--outline);
+  font-size: 14px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   color: var(--text-dim);
-  transition: background 0.12s var(--ease), color 0.12s var(--ease);
+  transition: background 0.15s var(--ease), color 0.15s var(--ease), border-color 0.15s var(--ease);
 }
 
 .barpop-item:hover {
-  background: rgba(255, 255, 255, 0.18);
+  background: var(--hover);
   color: var(--text);
 }
 
 .barpop-item.is-on {
-  background: var(--mark);
-  color: #241d00;
+  border-color: transparent;
+  background: var(--primary-container);
+  color: var(--primary-on-container);
 }
 
 .barpop-stepper {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  margin-top: 7px;
+  gap: 8px;
+  margin-top: 12px;
 }
 
 .barpop-stepper button {
-  width: 26px;
-  height: 26px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.1);
-  font-size: 15px;
-  font-weight: 700;
+  background: var(--surface-3);
+  font-size: 20px;
+  font-weight: 600;
   line-height: 1;
   color: var(--text);
+  transition: background 0.15s var(--ease);
 }
 
 .barpop-stepper button:hover {
-  background: rgba(255, 255, 255, 0.2);
+  background: #3b3f4b;
 }
 
 .barpop-stepper output {
-  min-width: 46px;
-  font-size: 12.5px;
+  min-width: 60px;
+  font-size: 16px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   text-align: center;
@@ -632,8 +736,8 @@
 }
 
 .barpop-note {
-  margin-top: 7px;
-  font-size: 10.5px;
+  margin-top: 10px;
+  font-size: 12.5px;
   text-align: center;
   color: var(--text-faint);
 }
@@ -646,7 +750,7 @@
   position: absolute;
   left: var(--pad-x);
   right: var(--pad-x);
-  bottom: calc(var(--control-h) + 22px);
+  bottom: calc(var(--control-h) + 34px);
   height: 0;
   pointer-events: none;
 }
@@ -655,11 +759,11 @@
   --arrow-offset: 50%;
   position: absolute;
   bottom: 0;
-  width: 320px;
+  width: 380px;
   pointer-events: auto;
   opacity: 0;
-  transform: translateY(6px);
-  transition: opacity 0.14s var(--ease), transform 0.14s var(--ease);
+  transform: translateY(8px);
+  transition: opacity 0.18s var(--ease), transform 0.22s var(--ease-out);
 }
 
 .composer.is-open {
@@ -670,8 +774,8 @@
 .composer-body {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 7px 7px 7px 11px;
+  gap: 10px;
+  padding: 8px 8px 8px 12px;
   border-radius: var(--radius);
   background: var(--surface);
   border: 1px solid var(--line);
@@ -680,11 +784,11 @@
 
 .composer-arrow {
   position: absolute;
-  bottom: -6px;
+  bottom: -7px;
   left: var(--arrow-offset);
-  width: 12px;
-  height: 12px;
-  margin-left: -6px;
+  width: 14px;
+  height: 14px;
+  margin-left: -7px;
   background: var(--surface);
   border-right: 1px solid var(--line);
   border-bottom: 1px solid var(--line);
@@ -693,11 +797,11 @@
 
 .composer-stamp {
   flex: none;
-  padding: 3px 7px;
-  border-radius: 6px;
+  padding: 5px 10px;
+  border-radius: var(--radius-xs);
   background: var(--mark);
-  color: #241d00;
-  font-size: 11.5px;
+  color: var(--mark-ink);
+  font-size: 13px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
@@ -705,12 +809,13 @@
 .composer-input {
   flex: 1;
   min-width: 0;
+  min-height: 40px;
   background: none;
   border: 0;
   outline: none;
   color: var(--text);
   font: inherit;
-  font-size: 13.5px;
+  font-size: 15px;
   user-select: text;
 }
 
@@ -720,11 +825,12 @@
 
 .composer-save {
   flex: none;
-  padding: 6px 12px;
+  min-height: 40px;
+  padding: 0 18px;
   border-radius: 999px;
   background: var(--mark);
-  color: #241d00;
-  font-size: 12.5px;
+  color: var(--mark-ink);
+  font-size: 14px;
   font-weight: 700;
 }
 
@@ -733,16 +839,16 @@
 }
 
 .composer-hint {
-  margin-top: 6px;
-  padding-left: 2px;
-  font-size: 11px;
-  color: rgba(255, 255, 255, 0.62);
+  margin-top: 8px;
+  padding-left: 4px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.72);
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
 }
 
 .composer-hint kbd {
-  font-size: 10px;
-  padding: 1px 4px;
+  font-size: 11px;
+  padding: 1px 5px;
 }
 
 /* ------------------------------------------------------------------ *
@@ -750,18 +856,18 @@
  * ------------------------------------------------------------------ */
 
 .trim-host {
-  padding: 0 var(--pad-x) 8px;
+  padding: 0 var(--pad-x) 12px;
 }
 
 .trimbar {
-  padding: 8px 10px;
-  border-radius: var(--radius);
+  padding: 14px 16px;
+  border-radius: var(--radius-lg);
   background: var(--surface);
   border: 1px solid var(--line);
   box-shadow: var(--shadow);
   opacity: 0;
-  transform: translateY(6px);
-  transition: opacity 0.14s var(--ease), transform 0.14s var(--ease);
+  transform: translateY(8px);
+  transition: opacity 0.18s var(--ease), transform 0.24s var(--ease-out);
 }
 
 .trimbar.is-open {
@@ -773,28 +879,32 @@
 .trim-busy {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 14px;
   flex-wrap: wrap;
 }
 
 .trim-badge {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
+  height: 40px;
+  padding: 0 14px 0 10px;
+  border-radius: 999px;
+  background: rgb(var(--trim-rgb) / 0.14);
   color: var(--trim);
-  font-size: 12.5px;
+  font-size: 15px;
   font-weight: 700;
 }
 
 .trim-badge .icon {
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
 }
 
 .trim-marks {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   flex-wrap: wrap;
 }
 
@@ -803,15 +913,17 @@
   display: inline-flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 1px;
-  padding: 4px 9px;
+  justify-content: center;
+  gap: 2px;
+  min-height: 48px;
+  padding: 4px 14px;
   border-radius: var(--radius-sm);
   line-height: 1.15;
 }
 
 .trim-mark {
   background: var(--surface-2);
-  transition: background 0.12s var(--ease);
+  transition: background 0.15s var(--ease);
 }
 
 .trim-mark:hover {
@@ -820,16 +932,16 @@
 
 .trim-mark small,
 .trim-length small {
-  font-size: 9.5px;
-  font-weight: 700;
-  letter-spacing: 0.07em;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--text-faint);
 }
 
 .trim-mark b,
 .trim-length b {
-  font-size: 13px;
+  font-size: 16px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   color: var(--text);
@@ -840,69 +952,86 @@
 }
 
 .trim-set {
-  padding: 5px 9px;
-  border-radius: 7px;
-  background: rgba(255, 255, 255, 0.09);
-  font-size: 11px;
+  min-height: 36px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid var(--outline);
+  font-size: 13px;
   font-weight: 600;
-  color: var(--text-dim);
-  transition: background 0.12s var(--ease), color 0.12s var(--ease);
+  color: var(--text);
+  transition: background 0.15s var(--ease);
 }
 
 .trim-set:hover {
-  background: rgba(255, 255, 255, 0.18);
-  color: var(--text);
+  background: var(--hover);
 }
 
 .trim-span {
-  width: 14px;
-  height: 1px;
-  background: var(--line);
+  width: 16px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--outline);
 }
 
 .trim-tail {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   margin-inline-start: auto;
 }
 
-/* The mode chips borrow the shared chip, but not its bookmark yellow — in this
+/* The mode chips borrow the shared chip, but not its bookmark colour — in this
    bar the highlighted thing is the clip, and the clip is --trim. */
 .trim-modes .chip.is-on {
   background: var(--trim);
+  border-color: transparent;
   color: var(--trim-ink);
 }
 
 .trim-export {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 7px 13px;
+  gap: 8px;
+  min-height: 48px;
+  padding: 0 24px 0 20px;
   border-radius: 999px;
   background: var(--trim);
   color: var(--trim-ink);
-  font-size: 12.5px;
+  font-size: 15px;
   font-weight: 700;
+  box-shadow: var(--elev-1);
+  transition: box-shadow 0.2s var(--ease), filter 0.2s var(--ease);
 }
 
 .trim-export .icon {
-  width: 16px;
-  height: 16px;
+  width: 20px;
+  height: 20px;
 }
 
 .trim-export:hover {
-  filter: brightness(1.08);
+  filter: brightness(1.06);
+  box-shadow: var(--elev-2);
 }
 
 .trim-export:disabled {
-  opacity: 0.4;
+  opacity: 0.38;
   filter: none;
+  box-shadow: none;
   cursor: default;
 }
 
+.trimbar .btn-icon {
+  width: 44px;
+  height: 44px;
+}
+
+.trimbar .btn-icon .icon {
+  width: 20px;
+  height: 20px;
+}
+
 .trim-busy-text {
-  font-size: 12.5px;
+  font-size: 15px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -911,9 +1040,9 @@
 .trim-progress {
   flex: 1;
   min-width: 80px;
-  height: 4px;
-  border-radius: 2px;
-  background: rgba(255, 255, 255, 0.14);
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
   overflow: hidden;
 }
 
@@ -921,8 +1050,9 @@
   display: block;
   height: 100%;
   width: 0;
+  border-radius: 999px;
   background: var(--trim);
-  transition: width 0.2s linear;
+  transition: width 0.25s linear;
 }
 
 /* No total to measure against — a bar that slides says "working" without
@@ -939,21 +1069,24 @@
 }
 
 .trim-cancel {
-  padding: 5px 12px;
+  min-height: 40px;
+  padding: 0 18px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.12);
-  font-size: 12px;
+  border: 1px solid var(--outline);
+  font-size: 14px;
   font-weight: 600;
+  color: var(--text);
 }
 
 .trim-cancel:hover {
-  background: rgba(255, 255, 255, 0.2);
+  background: var(--hover);
 }
 
 .trim-note {
-  margin-top: 7px;
-  font-size: 11.5px;
-  line-height: 1.45;
+  margin-top: 10px;
+  padding-inline: 4px;
+  font-size: 13px;
+  line-height: 1.5;
   color: var(--text-faint);
 }
 
@@ -961,7 +1094,12 @@
  * Narrow windows
  * ------------------------------------------------------------------ */
 
-@media (max-width: 620px) {
+@media (max-width: 720px) {
+  :root {
+    --control-h: 52px;
+    --pad-x: 12px;
+  }
+
   .chapter,
   .volume-slot,
   /* The skip pair keeps its own settings button; the transport itself is what
@@ -971,33 +1109,49 @@
   }
 
   .cbtn {
-    width: 36px;
-    height: 36px;
+    width: 40px;
+    height: 40px;
+  }
+
+  .cbtn .icon {
+    width: 22px;
+    height: 22px;
+  }
+
+  .cbtn[data-role="play"] {
+    width: 46px;
+    height: 46px;
+  }
+
+  .time {
+    font-size: 13px;
+    padding: 0 6px;
   }
 
   .cbtn-rate {
     width: auto;
-    min-width: 40px;
-    padding: 0 8px;
+    min-width: 48px;
+    height: 36px;
+    padding: 0 10px;
   }
 
   .barpop-grid {
-    grid-template-columns: repeat(5, minmax(38px, 1fr));
+    grid-template-columns: repeat(5, minmax(44px, 1fr));
   }
 
   .composer {
-    width: min(300px, calc(100vw - 32px));
+    width: min(340px, calc(100vw - 24px));
   }
 
   .stage-nav {
-    width: 38px;
-    height: 38px;
-    margin-top: -19px;
+    width: 44px;
+    height: 44px;
+    margin-top: -22px;
   }
 
   .stage-nav .icon {
-    width: 22px;
-    height: 22px;
+    width: 24px;
+    height: 24px;
   }
 
   .stage-nav-prev {
